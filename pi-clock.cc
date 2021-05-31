@@ -89,8 +89,8 @@ TZData *tzPosition(int position, TZData *first, TZData *second, TZData *third,
 //
 Color tzColorSet(int hour, Color overnight, Color day, Color evening) {
   Color retVal = overnight;
-  if (hour > 9) retVal = day;
-  if (hour > 18) retVal = evening;
+  if (hour > 7) retVal = day;
+  if (hour > 17) retVal = evening;
   return retVal;
 }
 
