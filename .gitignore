@@ -1,0 +1,8 @@
+
+# C++ objects and libs
+*.o
+*.a
+
+# Resulting binary
+pi-clock
+
