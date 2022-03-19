@@ -1,6 +1,6 @@
 CFLAGS=-Wall -O3 -g -Wextra -Wno-unused-parameter
 CXXFLAGS=$(CFLAGS)
-OBJECTS=pi-clock.o 
+OBJECTS=pi-clock.o configuration.o
 BINARIES=pi-clock
 
 # Where our library resides. You mostly only need to change the
@@ -17,7 +17,8 @@ all : $(BINARIES)
 $(RGB_LIBRARY): FORCE
 	$(MAKE) -C $(RGB_LIBDIR)
 
-pi-clock : pi-clock.o
+pi-clock : $(OBJECTS)
+	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS)
 
 # All the binaries that have the same name as the object file.q
 % : %.o $(RGB_LIBRARY)
