@@ -197,6 +197,11 @@ int main(int argc, char *argv[]) {
   if (matrix == NULL)
     return 1;
 
+  fprintf(stderr, "Matrix info: Total W&H=(%d,%d) build from (%d,%d)*%d\n",
+    matrix->width(), matrix->height(),
+    matrix_options.rows, matrix_options.cols,
+    matrix_options.chain_length);
+
   matrix->SetBrightness(brightness);
 
   const bool all_extreme_colors = (brightness == 100)

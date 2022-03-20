@@ -62,6 +62,17 @@ $
 
 Where `$HZELLER` is wherever you have installed and compiled the initial code above
 
+## Panel layout
+
+With a single panel, this section can be ignored.
+
+With two panels next to each other side by side, use `sudo ./pi-clock --led-chain=2 ...` command options.
+With two panels next to each other one above the other, use `sudo ./pi-clock --led-chain=2 --led-pixel-mapper=V-mapper` command options.
+
+Replace the `2` with whatever you have.
+
+These options are in addition to the required `--led-rows=64 --led-cols=64` options (swap to whatever size panel you are using).
+
 ## Run as a service
 
 I created a service so this starts up automatically on startup
