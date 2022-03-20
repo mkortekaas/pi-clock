@@ -16,7 +16,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <array>
 #include <time.h>
 #include <unistd.h>
 #include <bits/stdc++.h>
@@ -39,8 +38,9 @@ static int usage(const char *progname) {
           "\t-x <x-origin>     : X-Origin of displaying text (Default: 0)\n"
           "\t-y <y-origin>     : Y-Origin of displaying text (Default: 0)\n"
           "\t-G <spacing>      : Gap between columns in pixels (Default: 4)\n"
-          "\t-d                : Layout is down vs left/right\n"
+          "\t-d [d|l|m]        : Layout is:  D(own) or L(eft/right) or M(ark)\n"
           "\t-c                : Show city name vs airport code\n"
+          "\t-s <spacing>      : Spacing pixels between words (Default: 2)\n"
           "\t-S <spacing>      : Spacing pixels between letters (Default: 0)\n"
           "\t-F <date-format>  : Date format (Default is HH:MM:SS via %%H:%%M:%%S)\n"
           );
@@ -85,14 +85,11 @@ Color tzColorSet(int hour, Color overnight, Color day, Color evening) {
   return retVal;
 }
 
-void paint_airport_code(int x, int y, int letter_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
-  //  fprintf(stdout, "%d %d %s %s\n", x, y, this_tz->tzDisplay, this_tz->textBuffer);
+void paint_airport_code(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
   rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->tzDisplay, letter_spacing);
-  x += font->CharacterWidth('@') * strlen(this_tz->tzDisplay) + 2;
-  rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->textBuffer, letter_spacing);
 }
 
-void paint_city_name(int x, int y, int letter_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
+void paint_city_name(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
   char *p, city[80+1];
   p = index((char *)this_tz->tzString, '/');
   strncpy(city, p+1, 80);
@@ -100,8 +97,16 @@ void paint_city_name(int x, int y, int letter_spacing, FrameCanvas *canvas, rgb_
   int offset = (this_tz->tm.tm_min * 60 + this_tz->tm.tm_sec) % (l-2);
   city[offset+3] = '\0';
   rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, &city[offset], letter_spacing);
-  x += font->CharacterWidth('@') * strlen(this_tz->tzDisplay) + 2;
-  rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->textBuffer, letter_spacing);
+}
+
+void paint_time(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
+  // we handle spaces special - we space them based on space_spacing
+  char *token = strtok(this_tz->textBuffer, " ");
+  while (token != NULL) {
+    rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, token, letter_spacing);
+    x += font->CharacterWidth('@') * strlen(token) + space_spacing;
+    token = strtok(NULL, " ");
+  }
 }
 
 //
@@ -135,12 +140,14 @@ int main(int argc, char *argv[]) {
   int y_orig = 0;
   int brightness = 100;
   int letter_spacing = 0;
+  int space_spacing = 2;
+  int col_gap_spacing = 4;
   int city_name = 0;
-  int layout_down = 0;
+  char layout_choice = 'd';
   char date_format[80+1] = "";
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:b:S:G:cdF:")) != -1) {
+  while ((opt = getopt(argc, argv, "x:y:f:b:S:G:cd:s:F:")) != -1) {
     switch (opt) {
     case 'b': brightness = atoi(optarg); break;
     case 'x': x_orig = atoi(optarg); break;
@@ -148,7 +155,9 @@ int main(int argc, char *argv[]) {
     case 'f': bdf_font_file = strdup(optarg); break;
     case 'S': letter_spacing = atoi(optarg); break;
     case 'c': city_name = 1; break;
-    case 'd': layout_down = 1; break;
+    case 'd': layout_choice = optarg[0]; break;
+    case 's': space_spacing = atoi(optarg); break;
+    case 'G': col_gap_spacing = atoi(optarg); break;
     case 'F': strncpy(date_format, optarg, 80); break;
     default:
       return usage(argv[0]);
@@ -160,6 +169,11 @@ int main(int argc, char *argv[]) {
   }
 
 
+  if (layout_choice != 'd' && layout_choice != 'l' && layout_choice != 'm') {
+    fprintf(stderr, "Bad -d option (only d=Downward, l=Left/Right, m=Mark's special)\n");
+    return usage(argv[0]);
+  }
+
   if (bdf_font_file == NULL) {
     fprintf(stderr, "Need to specify BDF font-file with -f\n");
     return usage(argv[0]);
@@ -168,8 +182,8 @@ int main(int argc, char *argv[]) {
   /*
    * Load font. This needs to be a filename with a bdf bitmap font.
    */
-  rgb_matrix::Font font;
-  if (!font.LoadFont(bdf_font_file)) {
+  rgb_matrix::Font* font = new rgb_matrix::Font();
+  if (!font->LoadFont(bdf_font_file)) {
     fprintf(stderr, "Couldn't load font '%s'\n", bdf_font_file);
     return 1;
   }
@@ -234,34 +248,63 @@ int main(int argc, char *argv[]) {
 
     int x = x_orig;
     int y = y_orig;
+    int left_right = 0;
 
     // paint the screen but don't display it till after the loop
     // we are actually painting the upcomming time vs the time now
 
     for (size_t ii=0;ii<tz_length;ii=ii+1) {
-      //      fprintf(stdout, "%d\t", ii);
       if (city_name)
-        paint_city_name(x, y, letter_spacing, offscreen, &font, &tz[ii]);
+        paint_city_name(x, y, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
       else
-        paint_airport_code(x, y, letter_spacing, offscreen, &font, &tz[ii]);
+        paint_airport_code(x, y, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
+
+      x += font->CharacterWidth('@') * strlen(tz[ii].tzDisplay) + space_spacing;
+      paint_time(x, y, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
 
       // deal with layout 
-      if (layout_down) {
-        // simple - just head downwards! - don't change x
-        y += font.height();
-     } else {
-        // in this situation the hardware sees the boards as left/right but they are physically
-        // mounted top/bottom - so the first 3 displays are correct and then reset the X position
-        if (ii == 2) {
-          y = y_orig;
-          x = 64 + x_orig;
-        } else if (ii > 2) {
-          x = 64 + x_orig;
-          y += font.height();
-        } else {
-          y += font.height();
-        }
-      }
+      switch (layout_choice) {
+        case 'd':
+          // simple - just head downwards! - don't change x
+          x = x_orig;
+          y += font->height();
+          break;
+
+        case 'l':
+          // only increment y every other entry; but x swaps around a lot
+          if (left_right) {
+            // move down
+            x = x_orig;
+            y += font->height();
+          } else {
+            // move right
+            x += font->CharacterWidth('@') * strlen(tz[ii].tzDisplay) + space_spacing;
+            x += font->CharacterWidth('@') * strlen(tz[ii].textBuffer) + col_gap_spacing;
+          }
+          left_right = !left_right;
+          break;
+
+        case 'm':
+          // Mark's strange setup - which should be fixed with --led-pixel-mapper= argument
+          //
+          // in this situation the hardware sees the boards as left/right but they are physically
+          // mounted top/bottom - so the first 3 displays are correct and then reset the X position
+          if (ii == 2) {
+            x = 64 + x_orig;
+            y = y_orig;
+          } else if (ii > 2) {
+            x = 64 + x_orig;
+            y += font->height();
+          } else {
+            x = x_orig;
+            y += font->height();
+          }
+          break;
+
+        default:
+          // Can't happen (ha!)
+          break;
+       }
     }
 
     // Wait until we're ready to show it.

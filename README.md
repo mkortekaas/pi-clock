@@ -38,7 +38,9 @@ Parts I purchased:
 
 ```
   -d                : Layout is down vs left/right
+  -d [d|l|m]        : Layout is:  D(own) or L(eft/right) or M(ark)
   -c                : Show city name vs airport code
+  -s <spacing>      : Gap to replace space in time with in pixels (Default: 2)
   -G <spacing>      : Gap between columns in pixels (Default: 4)
   -F <date-format>  : Date format (Default is HH:MM:SS via %H:%M:%S)
 ```
@@ -54,7 +56,7 @@ See [strfime(3)](https://man7.org/linux/man-pages/man3/strftime.3.html) man page
 
 An example command line for a 64x64 display could be:
 ```
-$ sudo ./pi-clock --led-rows=64 --led-cols=64 --led-slowdown-gpio=4 --led-gpio-mapping=adafruit-hat -f $HZELLER/fonts/4x6.bdf -F '%H:%M:%S %Z' -x 1 -y 14 -G 2 -d
+$ sudo ./pi-clock --led-rows=64 --led-cols=64 --led-slowdown-gpio=4 --led-gpio-mapping=adafruit-hat -f $HZELLER/fonts/4x6.bdf -F '%H:%M:%S %Z' -x 1 -y 14 -G 2
 $
 ```
 
