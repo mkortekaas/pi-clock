@@ -38,7 +38,7 @@ Parts I purchased:
 
 ```
   -d                : Layout is down vs left/right
-  -d [d|l|m]        : Layout is:  D(own) or L(eft/right) or M(ark)
+  -d [d|l]        : Layout is:  D(own) or L(eft/right)
   -c                : Show city name vs airport code
   -s <spacing>      : Gap to replace space in time with in pixels (Default: 2)
   -G <spacing>      : Gap between columns in pixels (Default: 4)
@@ -75,9 +75,9 @@ These options are in addition to the required `--led-rows=64 --led-cols=64` opti
 
 ## Run as a service
 
-I created a service so this starts up automatically on startup
+I created a service so this starts up automatically on startup (2 64x32 panels in one chain but mounted vertically)
 
-1. Create a file /lib/systemd/system/pi-clock.service with the following in it:
+1. Create a file `/lib/systemd/system/pi-clock.service` with the following in it:
 ```
    [Unit]
    Description=PI Clock Service
@@ -85,7 +85,7 @@ I created a service so this starts up automatically on startup
 
    [Service]
    Type=idle
-   ExecStart=/home/pi/git/pi-clock/pi-clock --led-rows=32 --led-cols=128 -f /home/pi/matrix/rpi-rgb-led-matrix/fonts/6x10.bdf -x 2 -y 2 -S -1 --led-slowdown-gpio=4 -b 50
+   ExecStart=/home/pi/git/pi-clock/pi-clock --led-rows=32 --led-cols=64 -f /home/pi/matrix/rpi-rgb-led-matrix/fonts/6x10.bdf -x 2 -y 4 -S -1 --led-slowdown-gpio=4 -b 50 --led-pixel-mapper=V-mapper --led-chain=2
 
    [Install]
    WantedBy=multi-user.target

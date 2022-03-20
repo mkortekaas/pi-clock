@@ -38,7 +38,7 @@ static int usage(const char *progname) {
           "\t-x <x-origin>     : X-Origin of displaying text (Default: 0)\n"
           "\t-y <y-origin>     : Y-Origin of displaying text (Default: 0)\n"
           "\t-G <spacing>      : Gap between columns in pixels (Default: 4)\n"
-          "\t-d [d|l|m]        : Layout is:  D(own) or L(eft/right) or M(ark)\n"
+          "\t-d [d|l]        : Layout is:  D(own) or L(eft/right)\n"
           "\t-c                : Show city name vs airport code\n"
           "\t-s <spacing>      : Spacing pixels between words (Default: 2)\n"
           "\t-S <spacing>      : Spacing pixels between letters (Default: 0)\n"
@@ -141,13 +141,12 @@ int main(int argc, char *argv[]) {
   int brightness = 100;
   int letter_spacing = 0;
   int space_spacing = 2;
-  int col_gap_spacing = 4;
   int city_name = 0;
   char layout_choice = 'd';
   char date_format[80+1] = "";
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:b:S:G:cd:s:F:")) != -1) {
+  while ((opt = getopt(argc, argv, "x:y:f:b:S:cd:s:F:")) != -1) {
     switch (opt) {
     case 'b': brightness = atoi(optarg); break;
     case 'x': x_orig = atoi(optarg); break;
@@ -157,7 +156,6 @@ int main(int argc, char *argv[]) {
     case 'c': city_name = 1; break;
     case 'd': layout_choice = optarg[0]; break;
     case 's': space_spacing = atoi(optarg); break;
-    case 'G': col_gap_spacing = atoi(optarg); break;
     case 'F': strncpy(date_format, optarg, 80); break;
     default:
       return usage(argv[0]);
@@ -282,28 +280,10 @@ int main(int argc, char *argv[]) {
             x = x_orig;
             y += font->height();
           } else {
-            // move right
-            x += font->CharacterWidth('@') * strlen(tz[ii].tzDisplay) + space_spacing;
-            x += font->CharacterWidth('@') * strlen(tz[ii].textBuffer) + col_gap_spacing;
+            // move right -- you want this to start at the halfway point of the total width
+            x = matrix->width()/2 + x_orig;
           }
           left_right = !left_right;
-          break;
-
-        case 'm':
-          // Mark's strange setup - which should be fixed with --led-pixel-mapper= argument
-          //
-          // in this situation the hardware sees the boards as left/right but they are physically
-          // mounted top/bottom - so the first 3 displays are correct and then reset the X position
-          if (ii == 2) {
-            x = 64 + x_orig;
-            y = y_orig;
-          } else if (ii > 2) {
-            x = 64 + x_orig;
-            y += font->height();
-          } else {
-            x = x_orig;
-            y += font->height();
-          }
           break;
 
         default:
