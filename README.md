@@ -66,7 +66,8 @@ Where `$HZELLER` is wherever you have installed and compiled the initial code ab
 
 I created a service so this starts up automatically on startup
 
-1. Create a file /lib/systemd/system/pi-clock.service with the following in it: 
+1. Create a file /lib/systemd/system/pi-clock.service with the following in it:
+```
    [Unit]
    Description=PI Clock Service
    After=multi-user.target
@@ -77,8 +78,8 @@ I created a service so this starts up automatically on startup
 
    [Install]
    WantedBy=multi-user.target
-
-2. systemctl enable pi-clock
-3. systemctl start pi-clock (or reboot...)
+```
+2. `systemctl enable pi-clock`
+3. `systemctl start pi-clock` (or reboot...)
 
 
