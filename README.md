@@ -1,9 +1,12 @@
 # pi-clock
 
+# Start
+
 Starting instructions are here: https://learn.adafruit.com/adafruit-rgb-matrix-plus-real-time-clock-hat-for-raspberry-pi/downloads?view=all
 
 Main script that gets the library ( https://github.com/hzeller/rpi-rgb-led-matrix ) and installs what is required.
 
+# Parts
 Parts I purchased:
 1x raspberry pi 4/4GB
    https://www.adafruit.com/product/4296
@@ -33,8 +36,34 @@ If you were to decide to do a 64x64 Matrix in theory it should work fine
    You will not need the extra 30cm cable above
    You will need 4x screws instead
 
+## Added by [@mahtin](https://github.com/mahtin)
 
-=============
+```
+  -d                : Layout is down vs left/right
+  -c                : Show city name vs airport code
+  -G <spacing>      : Gap between columns in pixels (Default: 4)
+  -F <date-format>  : Date format (Default is HH:MM:SS via %H:%M:%S)
+```
+
+If you are using a wide display (or two panels left-right) then it paints left right.
+If you have a square or tall setup, then use the `-d` flag to paint downwards.
+
+The `-c` flag will show city names vs three letter airport codes - it's not perfect.
+
+The `-F` flag allows you to play with the date format output. For example `-F '%H:%M:%S %Z'` will add a timezone string.
+You could use `%a` or `%A` for the day of the week, etc.
+See [strfime(3)](https://man7.org/linux/man-pages/man3/strftime.3.html) man page.
+
+An example command line for a 64x64 display could be:
+```
+$ sudo ./pi-clock --led-rows=64 --led-cols=64 --led-slowdown-gpio=4 --led-gpio-mapping=adafruit-hat -f $HZELLER/fonts/4x6.bdf -F '%H:%M:%S %Z' -x 1 -y 14 -G 2 -d
+$
+```
+
+Where `$HZELLER` is wherever you have installed and compiled the initial code above
+
+## Run as a service
+
 I created a service so this starts up automatically on startup
 
 1. Create a file /lib/systemd/system/pi-clock.service with the following in it: 

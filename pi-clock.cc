@@ -9,26 +9,19 @@
 #include "led-matrix.h"
 #include "graphics.h"
 
+#include "configuration.h"
+
 #include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// #include <array>
 #include <time.h>
 #include <unistd.h>
 #include <bits/stdc++.h>
 
 using namespace rgb_matrix;
-
-// internal structure to make code easier below
-struct TZData {
-  char textBuffer[256];
-  char tzString[64];
-  char tzDisplay[12];
-  struct timespec next_time;
-  struct tm tm;
-  Color tzColor;
-} ; 
 
 volatile bool interrupt_received = false;
 static void InterruptHandler(int signo) {
@@ -37,8 +30,7 @@ static void InterruptHandler(int signo) {
 
 static int usage(const char *progname) {
   fprintf(stderr, "usage: %s [options]\n", progname);
-  fprintf(stderr, "Reads text from stdin and displays it. "
-          "Empty string: clear screen\n");
+  fprintf(stderr, "Displays various timezones.\n");
   fprintf(stderr, "Options:\n");
   rgb_matrix::PrintMatrixFlags(stderr);
   fprintf(stderr,
@@ -46,7 +38,11 @@ static int usage(const char *progname) {
           "\t-b <brightness>   : Sets brightness percent. Default: 100.\n"
           "\t-x <x-origin>     : X-Origin of displaying text (Default: 0)\n"
           "\t-y <y-origin>     : Y-Origin of displaying text (Default: 0)\n"
+          "\t-G <spacing>      : Gap between columns in pixels (Default: 4)\n"
+          "\t-d                : Layout is down vs left/right\n"
+          "\t-c                : Show city name vs airport code\n"
           "\t-S <spacing>      : Spacing pixels between letters (Default: 0)\n"
+          "\t-F <date-format>  : Date format (Default is HH:MM:SS via %%H:%%M:%%S)\n"
           );
 
   return 1;
@@ -59,29 +55,24 @@ static bool FullSaturation(const Color &c) {
 }
 
 //
-// Sorting routine - assumes 6 timezones
-//  Probably should make this more generic but ...
+// Sorting helper - Hour & Minute & Second based
 //
-TZData *tzPosition(int position, TZData *first, TZData *second, TZData *third,
-                   TZData *fourth, TZData *fifth, TZData *sixth) {
-  int n = 6 ;
-  int inputArray[] = {first->tm.tm_hour,
-                      second->tm.tm_hour,
-                      third->tm.tm_hour,
-                      fourth->tm.tm_hour,
-                      fifth->tm.tm_hour,
-                      sixth->tm.tm_hour };
-  std::sort(inputArray, inputArray + n);
+int time_sorter(const void *a, const void *b) {
+    TZData *lhs = (TZData *)a;
+    TZData *rhs = (TZData *)b;
+    if (lhs->tm.tm_hour != rhs->tm.tm_hour)
+        return lhs->tm.tm_hour < rhs->tm.tm_hour;
+    if (lhs->tm.tm_min != rhs->tm.tm_min)
+        return lhs->tm.tm_min < rhs->tm.tm_min;
+    if (lhs->tm.tm_sec != rhs->tm.tm_sec)
+        return lhs->tm.tm_sec < rhs->tm.tm_sec;
+    // final breaker is the name
+    return strcmp(lhs->tzString, rhs->tzString);
+}
 
-  //  looking for inputArray[position] to match - need to reverse it
-  if (inputArray[5 - position] == first->tm.tm_hour) return first;
-  if (inputArray[5 - position] == second->tm.tm_hour) return second;
-  if (inputArray[5 - position] == third->tm.tm_hour) return third;
-  if (inputArray[5 - position] == fourth->tm.tm_hour) return fourth;
-  if (inputArray[5 - position] == fifth->tm.tm_hour) return fifth;
-
-  // by default if get here it's the 6th position
-  return sixth;
+void set_timezone(const char *timezone) {
+  setenv("TZ", timezone, 1);
+  tzset();
 }
 
 //
@@ -92,6 +83,24 @@ Color tzColorSet(int hour, Color overnight, Color day, Color evening) {
   if (hour > 7) retVal = day;
   if (hour > 17) retVal = evening;
   return retVal;
+}
+
+void paint_airport_code(int x, int y, int letter_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
+  rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->tzDisplay, letter_spacing);
+  x += font->CharacterWidth('@') * strlen(this_tz->tzDisplay) + 2;
+  rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->textBuffer, letter_spacing);
+}
+
+void paint_city_name(int x, int y, int letter_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
+  char *p, city[80+1];
+  p = index((char *)this_tz->tzString, '/');
+  strncpy(city, p+1, 80);
+  int l = strlen(city);
+  int offset = (this_tz->tm.tm_min * 60 + this_tz->tm.tm_sec) % (l-2);
+  city[offset+3] = '\0';
+  rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, &city[offset], letter_spacing);
+  x += font->CharacterWidth('@') * strlen(this_tz->tzDisplay) + 2;
+  rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->textBuffer, letter_spacing);
 }
 
 //
@@ -120,24 +129,37 @@ int main(int argc, char *argv[]) {
   // background color will be black 
   Color bg_color(0, 0, 0);
 
-  const char *bdf_font_file = NULL;
+  char *bdf_font_file = NULL;
   int x_orig = 0;
   int y_orig = 0;
   int brightness = 100;
   int letter_spacing = 0;
+  int col_gap_spacing = 4;
+  int city_name = 0;
+  int layout_down = 0;
+  char date_format[80+1] = "";
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:b:S:")) != -1) {
+  while ((opt = getopt(argc, argv, "x:y:f:b:S:G:cdF:")) != -1) {
     switch (opt) {
     case 'b': brightness = atoi(optarg); break;
     case 'x': x_orig = atoi(optarg); break;
     case 'y': y_orig = atoi(optarg); break;
     case 'f': bdf_font_file = strdup(optarg); break;
     case 'S': letter_spacing = atoi(optarg); break;
+    case 'c': city_name = 1; break;
+    case 'd': layout_down = 1; break;
+    case 'G': col_gap_spacing = atoi(optarg); break;
+    case 'F': strncpy(date_format, optarg, 80); break;
     default:
       return usage(argv[0]);
     }
   }
+
+  if (date_format[0]) {
+    tzFmtStr = date_format;
+  }
+
 
   if (bdf_font_file == NULL) {
     fprintf(stderr, "Need to specify BDF font-file with -f\n");
@@ -170,162 +192,93 @@ int main(int argc, char *argv[]) {
   if (all_extreme_colors)
       matrix->SetPWMBits(1);
 
-  int x = x_orig;
-  int y = y_orig;
-
   FrameCanvas *offscreen = matrix->CreateFrameCanvas();
 
-  //
-  // What time zones are we using?
-  //   These should probably be read in via config but ...
-  // 
-  TZData tz0;
-  strcpy (tz0.tzString, "Europe/Paris");
-  strcpy (tz0.tzDisplay, "CET");
-  tz0.next_time.tv_sec = time(NULL);
-  tz0.next_time.tv_nsec = 0;
-  
-  TZData tz1;
-  strcpy (tz1.tzString, "Europe/London");
-  strcpy (tz1.tzDisplay, "LHR");
-  tz1.next_time.tv_sec = time(NULL);
-  tz1.next_time.tv_nsec = 0;
-  
-  TZData tz2;
-  strcpy (tz2.tzString, "America/New_York");
-  strcpy (tz2.tzDisplay,"NYC");
-  tz2.next_time.tv_sec = time(NULL);
-  tz2.next_time.tv_nsec = 0;
-    
-  TZData tz3;
-  strcpy (tz3.tzString, "America/Denver");
-  strcpy (tz3.tzDisplay,"DEN");
-  tz3.next_time.tv_sec = time(NULL);
-  tz3.next_time.tv_nsec = 0;
+  // The time - we cheet and only get it once and expect clock_nanosleep() to keep us kosher
+  struct timespec next_time;
+  next_time.tv_sec = time(NULL);
+  next_time.tv_nsec = 0;
 
-  TZData tz4;
-  strcpy (tz4.tzString, "America/Los_Angeles");
-  strcpy (tz4.tzDisplay, "SEA");
-  tz4.next_time.tv_sec = time(NULL);
-  tz4.next_time.tv_nsec = 0;
-  
-  TZData tz5;
-  strcpy (tz5.tzString, "Asia/Kolkata");
-  strcpy (tz5.tzDisplay, "BLR");
-  tz5.next_time.tv_sec = time(NULL);
-  tz5.next_time.tv_nsec = 0;
+  size_t tz_length = tz_wanted_len;
+  TZData *tz = (TZData *)malloc(sizeof(TZData)*tz_length);
+  for (size_t ii=0;ii<tz_length;ii=ii+1) {
+    tz[ii].textBuffer = (char *)malloc(80+1);
+    tz[ii].tzString = tz_wanted[ii].tzString;
+    tz[ii].tzDisplay = tz_wanted[ii].tzDisplay;
+  }
 
   signal(SIGTERM, InterruptHandler);
   signal(SIGINT, InterruptHandler);
 
   while (!interrupt_received) {
 
-      offscreen->Fill(bg_color.r, bg_color.g, bg_color.b);
-      offscreen->Clear();
+    offscreen->Fill(bg_color.r, bg_color.g, bg_color.b);
+    offscreen->Clear();
 
-      // ============= Get TZ info for all 6 timezones ======================
-      // ==  Set color as well based on hour (but you could hard code too)
-      setenv("TZ", tz0.tzString, 1); tzset();
-      localtime_r(&tz0.next_time.tv_sec, &tz0.tm);
-      strftime(tz0.textBuffer, sizeof(tz0.textBuffer), tzFmtStr, &tz0.tm);
-      tz0.tzColor = tzColorSet(tz0.tm.tm_hour, colorBlue, colorWhite, colorRed);
-      
-      setenv("TZ", tz1.tzString, 1); tzset();
-      localtime_r(&tz1.next_time.tv_sec, &tz1.tm);
-      strftime(tz1.textBuffer, sizeof(tz1.textBuffer), tzFmtStr, &tz1.tm);
-      tz1.tzColor = tzColorSet(tz1.tm.tm_hour, colorBlue, colorWhite, colorRed);
-      
-      setenv("TZ", tz2.tzString, 1); tzset();
-      localtime_r(&tz2.next_time.tv_sec, &tz2.tm);
-      strftime(tz2.textBuffer, sizeof(tz2.textBuffer), tzFmtStr, &tz2.tm);
-      tz2.tzColor = tzColorSet(tz2.tm.tm_hour, colorBlue, colorWhite, colorRed);
-      
-      setenv("TZ", tz3.tzString, 1); tzset();
-      localtime_r(&tz3.next_time.tv_sec, &tz3.tm);
-      strftime(tz3.textBuffer, sizeof(tz3.textBuffer), tzFmtStr, &tz3.tm);
-      tz3.tzColor = tzColorSet(tz3.tm.tm_hour, colorBlue, colorWhite, colorRed);
-      
-      setenv("TZ", tz4.tzString, 1); tzset();
-      localtime_r(&tz4.next_time.tv_sec, &tz4.tm);
-      strftime(tz4.textBuffer, sizeof(tz4.textBuffer), tzFmtStr, &tz4.tm);
-      tz4.tzColor = tzColorSet(tz4.tm.tm_hour, colorBlue, colorWhite, colorRed);
-      
-      setenv("TZ", tz5.tzString, 1); tzset();
-      localtime_r(&tz5.next_time.tv_sec, &tz5.tm);
-      strftime(tz5.textBuffer, sizeof(tz5.textBuffer), tzFmtStr, &tz5.tm);
-      tz5.tzColor = tzColorSet(tz5.tm.tm_hour, colorBlue, colorWhite, colorRed);
+    set_timezone("UTC");
 
-      // ============= Now Sort how we display ======================
-      // == ordering is odd b/c of the single display channel so we have
-      // == need to interlace the output to be 0,2,4 and then 1,3,5
-      TZData *tzD0 = tzPosition(0, &tz0, &tz1, &tz2, &tz3, &tz4, &tz5);
-      TZData *tzD2 = tzPosition(1, &tz0, &tz1, &tz2, &tz3, &tz4, &tz5);
-      TZData *tzD4 = tzPosition(2, &tz0, &tz1, &tz2, &tz3, &tz4, &tz5);
-      TZData *tzD1 = tzPosition(3, &tz0, &tz1, &tz2, &tz3, &tz4, &tz5);
-      TZData *tzD3 = tzPosition(4, &tz0, &tz1, &tz2, &tz3, &tz4, &tz5);
-      TZData *tzD5 = tzPosition(5, &tz0, &tz1, &tz2, &tz3, &tz4, &tz5);
+    for (size_t ii=0;ii<tz_length;ii=ii+1) {
+        set_timezone(tz[ii].tzString);
+        localtime_r(&next_time.tv_sec, &tz[ii].tm);
+        strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
+        tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
+    }
 
-      // set our base starting point
-      x = x_orig;
-      y = y_orig;
+    // set_timezone("UTC");
 
-      // ============= First Row ======================
-      // == keeping in mind row is spread across 2 panels
-      // == if you change font/sizing you will need to play with spacing
-      x = x_orig;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD0->tzColor, NULL, tzD0->tzDisplay, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD0->tzDisplay) + 2;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD0->tzColor, NULL, tzD0->textBuffer, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD0->textBuffer) - 4;
+    // Sort in place - no need to worry about initial order; it's irrelvant
+    // Plus, as the order only changes every hour (or 1/2 for India), the sort will be nothing most of the time
+    qsort((void *)tz, tz_length, sizeof(TZData), time_sorter);
 
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD1->tzColor, NULL, tzD1->tzDisplay, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD1->tzDisplay) + 2;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD1->tzColor, NULL, tzD1->textBuffer, letter_spacing);
-      y += font.height();
+    // == keeping in mind row is spread across 2 panels
+    // == if you change font/sizing you will need to play with spacing
 
-      // ============= Second Row ======================
-      x = x_orig;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD2->tzColor, NULL, tzD2->tzDisplay, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD2->tzDisplay) + 2;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD2->tzColor, NULL, tzD2->textBuffer, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD2->textBuffer) - 4;
+    int x = x_orig;
+    int y = y_orig;
+    int left_right = 0;
 
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD3->tzColor, NULL, tzD3->tzDisplay, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD3->tzDisplay) + 2;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD3->tzColor, NULL, tzD3->textBuffer, letter_spacing);
-      y += font.height();
+    // paint the screen but don't display it till after the loop
+    // we are actually painting the upcomming time vs the time now
 
-      // ============= Third Row ======================
-      x = x_orig;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD4->tzColor, NULL, tzD4->tzDisplay, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD4->tzDisplay) + 2;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD4->tzColor, NULL, tzD4->textBuffer, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD4->textBuffer) - 4;
+    for (size_t ii=0;ii<tz_length;ii=ii+1) {
+      if (city_name)
+        paint_city_name(x, y, letter_spacing, offscreen, &font, &tz[ii]);
+      else
+        paint_airport_code(x, y, letter_spacing, offscreen, &font, &tz[ii]);
 
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD5->tzColor, NULL, tzD5->tzDisplay, letter_spacing);
-      x += font.CharacterWidth(100) * strlen(tzD5->tzDisplay) + 2;
-      rgb_matrix::DrawText(offscreen, font, x, y + font.baseline(), tzD5->tzColor, NULL, tzD5->textBuffer, letter_spacing);
-      y += font.height();
+      // deal with layout 
+      if (layout_down) {
+        // simple - just head downwards! - don't change x
+        y += font.height();
+     } else {
+        // only increment y every other entry; but x swaps around a lot
+        if (left_right) {
+          // move down
+          x = x_orig;
+          y += font.height();
+        } else {
+          // move right
+          x += font.CharacterWidth('@') * (strlen(tz[ii].tzDisplay) + strlen(tz[ii].textBuffer)) + 2 + col_gap_spacing;
+        }
+        left_right = !left_right;
+     }
+    }
 
-      // Wait until we're ready to show it.
-      clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &tz0.next_time, NULL);
+    // Wait until we're ready to show it.
+    clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &next_time, NULL);
 
-      // Atomic swap with double buffer
-      offscreen = matrix->SwapOnVSync(offscreen);
+    // Atomic swap with double buffer
+    offscreen = matrix->SwapOnVSync(offscreen);
 
-      // adjust second clock for all timezones and repeat
-      tz0.next_time.tv_sec += 1;
-      tz1.next_time.tv_sec += 1;
-      tz2.next_time.tv_sec += 1;
-      tz3.next_time.tv_sec += 1;
-      tz4.next_time.tv_sec += 1;
-      tz5.next_time.tv_sec += 1;
+    // adjust second clock for all timezones and repeat
+    next_time.tv_sec += 1;
+
   }
 
   // Finished. Shut down the RGB matrix.
   matrix->Clear();
   delete matrix;
 
-  write(STDOUT_FILENO, "\n", 1);  // Create a fresh new line after ^C on screen
+  fprintf(stderr, "\n");  // Create a fresh new line after ^C on screen
   return 0;
 }
