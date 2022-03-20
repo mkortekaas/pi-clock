@@ -86,6 +86,7 @@ Color tzColorSet(int hour, Color overnight, Color day, Color evening) {
 }
 
 void paint_airport_code(int x, int y, int letter_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
+  //  fprintf(stdout, "%d %d %s %s\n", x, y, this_tz->tzDisplay, this_tz->textBuffer);
   rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->tzDisplay, letter_spacing);
   x += font->CharacterWidth('@') * strlen(this_tz->tzDisplay) + 2;
   rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->textBuffer, letter_spacing);
@@ -134,7 +135,6 @@ int main(int argc, char *argv[]) {
   int y_orig = 0;
   int brightness = 100;
   int letter_spacing = 0;
-  int col_gap_spacing = 4;
   int city_name = 0;
   int layout_down = 0;
   char date_format[80+1] = "";
@@ -149,7 +149,6 @@ int main(int argc, char *argv[]) {
     case 'S': letter_spacing = atoi(optarg); break;
     case 'c': city_name = 1; break;
     case 'd': layout_down = 1; break;
-    case 'G': col_gap_spacing = atoi(optarg); break;
     case 'F': strncpy(date_format, optarg, 80); break;
     default:
       return usage(argv[0]);
@@ -235,12 +234,12 @@ int main(int argc, char *argv[]) {
 
     int x = x_orig;
     int y = y_orig;
-    int left_right = 0;
 
     // paint the screen but don't display it till after the loop
     // we are actually painting the upcomming time vs the time now
 
     for (size_t ii=0;ii<tz_length;ii=ii+1) {
+      //      fprintf(stdout, "%d\t", ii);
       if (city_name)
         paint_city_name(x, y, letter_spacing, offscreen, &font, &tz[ii]);
       else
@@ -251,17 +250,18 @@ int main(int argc, char *argv[]) {
         // simple - just head downwards! - don't change x
         y += font.height();
      } else {
-        // only increment y every other entry; but x swaps around a lot
-        if (left_right) {
-          // move down
-          x = x_orig;
+        // in this situation the hardware sees the boards as left/right but they are physically
+        // mounted top/bottom - so the first 3 displays are correct and then reset the X position
+        if (ii == 2) {
+          y = y_orig;
+          x = 64 + x_orig;
+        } else if (ii > 2) {
+          x = 64 + x_orig;
           y += font.height();
         } else {
-          // move right
-          x += font.CharacterWidth('@') * (strlen(tz[ii].tzDisplay) + strlen(tz[ii].textBuffer)) + 2 + col_gap_spacing;
+          y += font.height();
         }
-        left_right = !left_right;
-     }
+      }
     }
 
     // Wait until we're ready to show it.
