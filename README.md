@@ -2,7 +2,7 @@
 
 # Start
 
-Starting instructions are here: https://learn.adafruit.com/adafruit-rgb-matrix-plus-real-time-clock-hat-for-raspberry-pi/downloads?view=all. In particular there is a main script in there that configures the required library ( https://github.com/hzeller/rpi-rgb-led-matrix ) and installs what is required. In the case of this setup that is presumed to be in `/home/pi/matrix' (and then the rest of our code is in `/home/pi/git/pi-clock`). 
+Starting instructions are here: https://learn.adafruit.com/adafruit-rgb-matrix-plus-real-time-clock-hat-for-raspberry-pi/downloads?view=all. In particular there is a main script in there that configures the required library ( https://github.com/hzeller/rpi-rgb-led-matrix ) and installs what is required. In the case of this setup that is presumed to be in `/home/pi/matrix` (and then the rest of our code is in `/home/pi/git/pi-clock`). 
 
 # Parts
 Parts I purchased:
