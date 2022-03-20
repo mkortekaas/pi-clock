@@ -264,13 +264,13 @@ int main(int argc, char *argv[]) {
 
       // deal with layout 
       switch (layout_choice) {
-	case 'd':
+        case 'd':
           // simple - just head downwards! - don't change x
-	  x = x_orig;
+          x = x_orig;
           y += font->height();
-	  break;
+          break;
 
-	case 'l':
+        case 'l':
           // only increment y every other entry; but x swaps around a lot
           if (left_right) {
             // move down
@@ -282,11 +282,11 @@ int main(int argc, char *argv[]) {
             x += font->CharacterWidth('@') * strlen(tz[ii].textBuffer) + col_gap_spacing;
           }
           left_right = !left_right;
-	  break;
+          break;
 
         case 'm':
-	  // Mark's strange setup - which should be fixed with --led-pixel-mapper= argument
-	  //
+          // Mark's strange setup - which should be fixed with --led-pixel-mapper= argument
+          //
           // in this situation the hardware sees the boards as left/right but they are physically
           // mounted top/bottom - so the first 3 displays are correct and then reset the X position
           if (ii == 2) {
@@ -299,11 +299,11 @@ int main(int argc, char *argv[]) {
             x = x_orig;
             y += font->height();
           }
-	  break;
+          break;
 
         default:
-	  // Can't happen (ha!)
-	  break;
+          // Can't happen (ha!)
+          break;
        }
     }
 
