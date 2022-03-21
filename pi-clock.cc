@@ -37,9 +37,9 @@ static int usage(const char *progname) {
           "\t-b <brightness>   : Sets brightness percent. Default: 100.\n"
           "\t-x <x-origin>     : X-Origin of displaying text (Default: 0)\n"
           "\t-y <y-origin>     : Y-Origin of displaying text (Default: 0)\n"
-          "\t-G <spacing>      : Gap between columns in pixels (Default: 4)\n"
-          "\t-d [d|l]        : Layout is:  D(own) or L(eft/right)\n"
+          "\t-d [d|l]          : Layout is: D(own) or L(eft/right)\n"
           "\t-c                : Show city name vs airport code\n"
+          "\t-C <file>         : city config filename\n"
           "\t-s <spacing>      : Spacing pixels between words (Default: 2)\n"
           "\t-S <spacing>      : Spacing pixels between letters (Default: 0)\n"
           "\t-F <date-format>  : Date format (Default is HH:MM:SS via %%H:%%M:%%S)\n"
@@ -143,10 +143,11 @@ int main(int argc, char *argv[]) {
   int space_spacing = 2;
   int city_name = 0;
   char layout_choice = 'd';
-  char date_format[80+1] = "";
+  char *date_format = NULL;
+  char *city_file = NULL;
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:b:S:cd:s:F:")) != -1) {
+  while ((opt = getopt(argc, argv, "x:y:f:b:S:cC:d:s:F:")) != -1) {
     switch (opt) {
     case 'b': brightness = atoi(optarg); break;
     case 'x': x_orig = atoi(optarg); break;
@@ -154,18 +155,18 @@ int main(int argc, char *argv[]) {
     case 'f': bdf_font_file = strdup(optarg); break;
     case 'S': letter_spacing = atoi(optarg); break;
     case 'c': city_name = 1; break;
+    case 'C': city_file = strdup(optarg); break;
     case 'd': layout_choice = optarg[0]; break;
     case 's': space_spacing = atoi(optarg); break;
-    case 'F': strncpy(date_format, optarg, 80); break;
+    case 'F': date_format = strdup(optarg); break;
     default:
       return usage(argv[0]);
     }
   }
 
-  if (date_format[0]) {
+  if (date_format && strlen(date_format) > 0) {
     tzFmtStr = date_format;
   }
-
 
   if (layout_choice != 'd' && layout_choice != 'l' && layout_choice != 'm') {
     fprintf(stderr, "Bad -d option (only d=Downward, l=Left/Right, m=Mark's special)\n");
@@ -185,8 +186,15 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Couldn't load font '%s'\n", bdf_font_file);
     return 1;
   }
+
   if (brightness < 1 || brightness > 100) {
     fprintf(stderr, "Brightness is outside usable range.\n");
+    return 1;
+  }
+
+  // This inits the city list from built in code if no file provided..
+  if (read_city_list(city_file) == 0) {
+    fprintf(stderr, "Couldn't load city list file '%s'\n", city_file);
     return 1;
   }
 
