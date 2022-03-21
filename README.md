@@ -38,11 +38,11 @@ Parts I purchased:
 
 ```
   -d                : Layout is down vs left/right
-  -d [d|l]        : Layout is:  D(own) or L(eft/right)
+  -d [d|l]          : Layout is:  D(own) or L(eft/right)
   -c                : Show city name vs airport code
   -s <spacing>      : Gap to replace space in time with in pixels (Default: 2)
-  -G <spacing>      : Gap between columns in pixels (Default: 4)
   -F <date-format>  : Date format (Default is HH:MM:SS via %H:%M:%S)
+  -C city-file      : city config filename
 ```
 
 If you are using a wide display (or two panels left-right) then it paints left right.
