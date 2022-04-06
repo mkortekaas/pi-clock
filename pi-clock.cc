@@ -10,6 +10,7 @@
 #include "graphics.h"
 
 #include "configuration.h"
+#include "timezones.h"
 
 #include <getopt.h>
 #include <signal.h>
@@ -43,6 +44,8 @@ static int usage(const char *progname) {
           "\t-s <spacing>      : Spacing pixels between words (Default: 2)\n"
           "\t-S <spacing>      : Spacing pixels between letters (Default: 0)\n"
           "\t-F <date-format>  : Date format (Default is HH:MM:SS via %%H:%%M:%%S)\n"
+          "\t-D                : Dim brightness downward at night\n"
+          "\t-H                : Highlight your own timezone\n"
           );
 
   return 1;
@@ -68,11 +71,6 @@ int time_sorter(const void *a, const void *b) {
         return lhs->tm.tm_sec < rhs->tm.tm_sec;
     // final breaker is the name
     return strcmp(lhs->tzString, rhs->tzString);
-}
-
-void set_timezone(const char *timezone) {
-  setenv("TZ", timezone, 1);
-  tzset();
 }
 
 //
@@ -129,8 +127,6 @@ int main(int argc, char *argv[]) {
   Color colorGreen(0, 255, 0);
   Color colorBlue(0, 0, 255);
   Color colorWhite(255, 255, 255);
-  Color colorRedGreen(255, 255, 0);
-  Color colorGreenBlue(0, 255, 255);
 
   // background color will be black 
   Color bg_color(0, 0, 0);
@@ -138,27 +134,31 @@ int main(int argc, char *argv[]) {
   char *bdf_font_file = NULL;
   int x_orig = 0;
   int y_orig = 0;
-  int brightness = 100;
+  uint8_t brightness = 100;
+  bool dim_display = false;
+  bool highlight_own_tz = false;
   int letter_spacing = 0;
   int space_spacing = 2;
-  int city_name = 0;
+  bool city_name = false;
   char layout_choice = 'd';
   char *date_format = NULL;
   char *city_file = NULL;
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:b:S:cC:d:s:F:")) != -1) {
+  while ((opt = getopt(argc, argv, "x:y:f:b:S:cC:d:s:F:DH")) != -1) {
     switch (opt) {
     case 'b': brightness = atoi(optarg); break;
     case 'x': x_orig = atoi(optarg); break;
     case 'y': y_orig = atoi(optarg); break;
     case 'f': bdf_font_file = strdup(optarg); break;
     case 'S': letter_spacing = atoi(optarg); break;
-    case 'c': city_name = 1; break;
+    case 'c': city_name = true; break;
     case 'C': city_file = strdup(optarg); break;
     case 'd': layout_choice = optarg[0]; break;
     case 's': space_spacing = atoi(optarg); break;
     case 'F': date_format = strdup(optarg); break;
+    case 'D': dim_display = true; break;
+    case 'H': highlight_own_tz = true; break;
     default:
       return usage(argv[0]);
     }
@@ -210,11 +210,8 @@ int main(int argc, char *argv[]) {
 
   matrix->SetBrightness(brightness);
 
-  const bool all_extreme_colors = (brightness == 100)
-      && FullSaturation(colorRed)
-    && FullSaturation(bg_color);
-  if (all_extreme_colors)
-      matrix->SetPWMBits(1);
+  if (!dim_display && brightness == 100 && FullSaturation(colorRed) && FullSaturation(bg_color))
+    matrix->SetPWMBits(1);
 
   FrameCanvas *offscreen = matrix->CreateFrameCanvas();
 
@@ -223,12 +220,15 @@ int main(int argc, char *argv[]) {
   next_time.tv_sec = time(NULL);
   next_time.tv_nsec = 0;
 
+  const char *my_timezone = get_timezone();
+
   size_t tz_length = tz_wanted_len;
   TZData *tz = (TZData *)malloc(sizeof(TZData)*tz_length);
   for (size_t ii=0;ii<tz_length;ii=ii+1) {
     tz[ii].textBuffer = (char *)malloc(80+1);
     tz[ii].tzString = tz_wanted[ii].tzString;
     tz[ii].tzDisplay = tz_wanted[ii].tzDisplay;
+    tz[ii].isMyTimezone = (strcmp(my_timezone, tz[ii].tzString) == 0) ? true : false;
   }
 
   signal(SIGTERM, InterruptHandler);
@@ -236,16 +236,36 @@ int main(int argc, char *argv[]) {
 
   while (!interrupt_received) {
 
+    if (dim_display) {
+      struct tm my_tm;
+
+      // Because this runs 24/7 we dim the display at night - kinda like an iPhone's Night Shift mode
+      // Ok, so by default, Night Shift turns on from sunset to sunrise - we dont' know when that is (currently)
+      // So we pick 7am to 7pm for now for daylight hours
+
+      set_timezone(my_timezone);
+      localtime_r(&next_time.tv_sec, &my_tm);
+      uint8_t new_brightness = (my_tm.tm_hour < 7 || my_tm.tm_hour >= 19) ? brightness/2 : brightness;
+      if (new_brightness != matrix->brightness()) {
+        matrix->SetBrightness(new_brightness);
+      }
+    }
+
     offscreen->Fill(bg_color.r, bg_color.g, bg_color.b);
     offscreen->Clear();
-
-    set_timezone("UTC");
 
     for (size_t ii=0;ii<tz_length;ii=ii+1) {
         set_timezone(tz[ii].tzString);
         localtime_r(&next_time.tv_sec, &tz[ii].tm);
         strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
-        tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
+        if (highlight_own_tz) {
+          if (tz[ii].isMyTimezone)
+            tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorGreen, colorGreen, colorGreen);
+          else
+            tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
+	} else {
+          tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
+	}
     }
 
     // set_timezone("UTC");
