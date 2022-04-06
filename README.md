@@ -43,6 +43,8 @@ Parts I purchased:
   -s <spacing>      : Gap to replace space in time with in pixels (Default: 2)
   -F <date-format>  : Date format (Default is HH:MM:SS via %H:%M:%S)
   -C city-file      : city config filename
+  -D                : Brightness adjusted downward at night
+  -H                : Highlight your own timezone
 ```
 
 If you are using a wide display (or two panels left-right) then it paints left right.
