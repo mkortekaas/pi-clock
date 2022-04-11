@@ -11,6 +11,7 @@
 
 #include "configuration.h"
 #include "timezones.h"
+#include "color_temp.h"
 
 #include <getopt.h>
 #include <signal.h>
@@ -55,6 +56,16 @@ static bool FullSaturation(const Color &c) {
     return (c.r == 0 || c.r == 255)
         && (c.g == 0 || c.g == 255)
         && (c.b == 0 || c.b == 255);
+}
+
+void adjust_color(int temp, Color *c)
+{
+    uint8_t r,g, b;
+
+    k_to_rgb(temp, &r, &g, &b);
+    c->r = float(c->r) * (float(r)/256.0);
+    c->g = float(c->g) * (float(g)/256.0);
+    c->b = float(c->b) * (float(b)/256.0);
 }
 
 //
@@ -236,6 +247,8 @@ int main(int argc, char *argv[]) {
 
   while (!interrupt_received) {
 
+    bool is_dimmed = false;
+
     if (dim_display) {
       struct tm my_tm;
 
@@ -245,26 +258,27 @@ int main(int argc, char *argv[]) {
 
       set_timezone(my_timezone);
       localtime_r(&next_time.tv_sec, &my_tm);
-      uint8_t new_brightness = (my_tm.tm_hour < 7 || my_tm.tm_hour >= 19) ? brightness/2 : brightness;
-      if (new_brightness != matrix->brightness()) {
-        matrix->SetBrightness(new_brightness);
-      }
+      is_dimmed = (my_tm.tm_hour < 7 || my_tm.tm_hour >= 19) ? true : false;
+      // uint8_t new_brightness = is_dimmed ? brightness/2 : brightness;
+      // if (new_brightness != matrix->brightness()) {
+      //   matrix->SetBrightness(new_brightness);
+      // }
     }
 
-    offscreen->Fill(bg_color.r, bg_color.g, bg_color.b);
     offscreen->Clear();
+    offscreen->Fill(bg_color.r, bg_color.g, bg_color.b);
 
     for (size_t ii=0;ii<tz_length;ii=ii+1) {
         set_timezone(tz[ii].tzString);
         localtime_r(&next_time.tv_sec, &tz[ii].tm);
         strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
-        if (highlight_own_tz) {
-          if (tz[ii].isMyTimezone)
-            tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorGreen, colorGreen, colorGreen);
-          else
-            tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
-	} else {
+        if (highlight_own_tz && tz[ii].isMyTimezone)
+          tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorGreen, colorGreen, colorGreen);
+        else
           tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
+        if (dim_display) {
+	  // Choosing index 0 and 3 is a first stab
+          adjust_color(k_tempratures[is_dimmed?0:3], &tz[ii].tzColor);
 	}
     }
 
