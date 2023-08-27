@@ -15,15 +15,18 @@ using namespace rgb_matrix;
 const TZDataWanted tz_wanted_built_in[] = {
 //	{ "Africa/Johannesburg", "JNB"},
 	{ "America/Denver",      "DEN"},
-	{ "America/Los_Angeles", "SEA"},
+//	{ "America/Los_Angeles", "SEA"},
 	{ "America/New_York",    "NYC"},
+	{ "America/Sao_Paulo",   "BRA"},
 //	{ "Pacific/Auckland",    "AKL"},
+//	{ "Asia/Katmandu",       "KTM"},
 	{ "Asia/Kolkata",        "BLR"},
 //	{ "Asia/Hong_Kong",      "HKG"},
 //	{ "Asia/Singapore",      "SIN"},	// Singapore does not have a timezone name (but it should be SGT)
 //	{ "Asia/Tel_Aviv",       "TLV"},
-	{ "Europe/London",       "LHR"},
-	{ "Europe/Paris",        "EUR"}		// "EUR" for Europe vs the specific city
+//	{ "Europe/London",       "LHR"},
+	{ "Europe/Paris",        "EUR"},	// "EUR" for Europe vs the specific city
+	{ "UTC",                 "UTC"}
 };
 
 const size_t tz_wanted_len_built_in = sizeof(tz_wanted_built_in)/sizeof(tz_wanted_built_in[0]);
