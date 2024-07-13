@@ -11,6 +11,7 @@ struct TZData {
 	const char *tzDisplay;
 	struct tm tm;
 	Color tzColor;
+	bool isMyTimezone;
 }; 
 
 struct TZDataWanted {
