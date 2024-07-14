@@ -53,35 +53,35 @@ static int usage(const char *progname) {
 }
 
 static bool FullSaturation(const Color &c) {
-    return (c.r == 0 || c.r == 255)
-        && (c.g == 0 || c.g == 255)
-        && (c.b == 0 || c.b == 255);
+  return (c.r == 0 || c.r == 255)
+      && (c.g == 0 || c.g == 255)
+      && (c.b == 0 || c.b == 255);
 }
 
 void adjust_color(int temp, Color *c)
 {
-    uint8_t r,g, b;
+  uint8_t r,g, b;
 
-    k_to_rgb(temp, &r, &g, &b);
-    c->r = float(c->r) * (float(r)/256.0);
-    c->g = float(c->g) * (float(g)/256.0);
-    c->b = float(c->b) * (float(b)/256.0);
+  k_to_rgb(temp, &r, &g, &b);
+  c->r = float(c->r) * (float(r)/256.0);
+  c->g = float(c->g) * (float(g)/256.0);
+  c->b = float(c->b) * (float(b)/256.0);
 }
 
 //
 // Sorting helper - Hour & Minute & Second based
 //
 int time_sorter(const void *a, const void *b) {
-    TZData *lhs = (TZData *)a;
-    TZData *rhs = (TZData *)b;
-    if (lhs->tm.tm_hour != rhs->tm.tm_hour)
-        return lhs->tm.tm_hour < rhs->tm.tm_hour;
-    if (lhs->tm.tm_min != rhs->tm.tm_min)
-        return lhs->tm.tm_min < rhs->tm.tm_min;
-    if (lhs->tm.tm_sec != rhs->tm.tm_sec)
-        return lhs->tm.tm_sec < rhs->tm.tm_sec;
-    // final breaker is the name
-    return strcmp(lhs->tzString, rhs->tzString);
+  TZData *lhs = (TZData *)a;
+  TZData *rhs = (TZData *)b;
+  if (lhs->tm.tm_hour != rhs->tm.tm_hour)
+      return lhs->tm.tm_hour < rhs->tm.tm_hour;
+  if (lhs->tm.tm_min != rhs->tm.tm_min)
+      return lhs->tm.tm_min < rhs->tm.tm_min;
+  if (lhs->tm.tm_sec != rhs->tm.tm_sec)
+      return lhs->tm.tm_sec < rhs->tm.tm_sec;
+  // final breaker is the name
+  return strcmp(lhs->tzString, rhs->tzString);
 }
 
 //
@@ -279,17 +279,17 @@ int main(int argc, char *argv[]) {
     offscreen->Fill(bg_color.r, bg_color.g, bg_color.b);
 
     for (size_t ii=0;ii<tz_length;ii=ii+1) {
-        set_timezone(tz[ii].tzString);
-        localtime_r(&next_time.tv_sec, &tz[ii].tm);
-        strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
-        if (highlight_own_tz && tz[ii].isMyTimezone)
-          tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorGreen, colorGreen, colorGreen);
-        else
-          tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
-        if (dim_display) {
-	  // Choosing index 0 and 3 is a first stab
-          adjust_color(k_tempratures[is_dimmed?0:3], &tz[ii].tzColor);
-	}
+      set_timezone(tz[ii].tzString);
+      localtime_r(&next_time.tv_sec, &tz[ii].tm);
+      strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
+      if (highlight_own_tz && tz[ii].isMyTimezone)
+        tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorGreen, colorGreen, colorGreen);
+      else
+        tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
+      if (dim_display) {
+        // Choosing index 0 and 3 is a first stab
+        adjust_color(k_tempratures[is_dimmed?0:3], &tz[ii].tzColor);
+      }
     }
 
     // set_timezone("UTC");
@@ -341,12 +341,11 @@ int main(int argc, char *argv[]) {
         default:
           // Can't happen (ha!)
           break;
-       }
-      //      int show_temp = 1;
-      //      if (show_temp) {
-      //paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, 99);
-      //}
-
+      }
+      // int show_temp = 1;
+      // if (show_temp) {
+      //   paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, 99);
+      // }
     }
 
     // Wait until we're ready to show it.
@@ -357,8 +356,6 @@ int main(int argc, char *argv[]) {
 
     // adjust second clock for all timezones and repeat
     next_time.tv_sec += 1;
-
-
   }
 
   // Finished. Shut down the RGB matrix.
