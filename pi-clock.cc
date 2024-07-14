@@ -12,6 +12,7 @@
 #include "configuration.h"
 #include "timezones.h"
 #include "color_temp.h"
+#include "FileReader.h"
 
 #include <getopt.h>
 #include <signal.h>
@@ -118,15 +119,17 @@ void paint_time(int x, int y, int letter_spacing, int space_spacing, FrameCanvas
   }
 }
 
-void paint_temp(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, int temp) {
+void paint_temp(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, FileReader fileReader) {
   Color colorGreen(0, 255, 0);
-  char token[12];
-  sprintf(token, "%d", temp);
-  while (token != NULL) {
-    rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), colorGreen, NULL, token, letter_spacing);
-    x += font->CharacterWidth('@') * strlen(token) + space_spacing;
+  std::string str = fileReader.getValue();
+  std::istringstream iss(str);
+  std::string token;
+  while (iss >> token) {
+    rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), colorGreen, NULL, token.c_str(), letter_spacing);
+    x += font->CharacterWidth('@') * token.length() + space_spacing;
   }
 }
+
 
 //
 // MAIN
@@ -164,9 +167,12 @@ int main(int argc, char *argv[]) {
   char layout_choice = 'd';
   char *date_format = NULL;
   char *city_file = NULL;
+  bool show_temp = false;
+  char *temperature_file = NULL;
+  int temperature_interval = 5;
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:b:S:cC:d:s:F:DH")) != -1) {
+  while ((opt = getopt(argc, argv, "x:y:f:b:S:cC:d:s:F:DHTt:i:")) != -1) {
     switch (opt) {
     case 'b': brightness = atoi(optarg); break;
     case 'x': x_orig = atoi(optarg); break;
@@ -180,6 +186,9 @@ int main(int argc, char *argv[]) {
     case 'F': date_format = strdup(optarg); break;
     case 'D': dim_display = true; break;
     case 'H': highlight_own_tz = true; break;
+    case 'T': show_temp = true; break;
+    case 't': temperature_file = strdup(optarg); break;
+    case 'i': temperature_interval = atoi(optarg); break;
     default:
       return usage(argv[0]);
     }
@@ -198,6 +207,9 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Need to specify BDF font-file with -f\n");
     return usage(argv[0]);
   }
+
+  std::string prefix = "TEMP "; // Replace with your desired prefix
+  FileReader temperatureFileReader(temperature_file, temperature_interval, prefix);
 
   /*
    * Load font. This needs to be a filename with a bdf bitmap font.
@@ -342,10 +354,11 @@ int main(int argc, char *argv[]) {
           // Can't happen (ha!)
           break;
       }
-      // int show_temp = 1;
-      // if (show_temp) {
-      //   paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, 99);
-      // }
+    }
+
+    // if we are displaying temp as the last line
+    if (show_temp == true) {
+      paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, temperatureFileReader);
     }
 
     // Wait until we're ready to show it.

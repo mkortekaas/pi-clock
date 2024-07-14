@@ -1,6 +1,6 @@
 CFLAGS=-Wall -O3 -g -Wextra -Wno-unused-parameter
 CXXFLAGS=$(CFLAGS)
-OBJECTS=configuration.o timezones.o color_temp.o pi-clock.o
+OBJECTS=configuration.o timezones.o color_temp.o pi-clock.o FileReader.o
 BINARIES=pi-clock
 
 # Where our library resides. You mostly only need to change the

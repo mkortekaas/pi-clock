@@ -2,15 +2,16 @@
 # Whatever you want to show!
 #
 
-	Africa/Johannesburg	JNB
+#	Africa/Johannesburg	JNB
 	America/Denver		DEN
-	America/Los_Angeles	SEA
+#	America/Los_Angeles	SEA
 	America/New_York	NYC
 #	Pacific/Auckland	AKL
 	Asia/Kolkata		BLR
 #	Asia/Hong_Kong		HKG
-	Asia/Singapore		SIN	# RPi fun - Singapore does not have a timezone name (but it should be SGT)
-	Asia/Tel_Aviv		TLV
-	Europe/London		LHR
+#	Asia/Singapore		SIN	# RPi fun - Singapore does not have a timezone name (but it should be SGT)
+#	Asia/Tel_Aviv		TLV
+#	Europe/London		LHR
 	Europe/Paris		EUR
+	UTC			UTC
 

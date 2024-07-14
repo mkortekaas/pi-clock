@@ -87,6 +87,8 @@ I created a service so this starts up automatically on startup (2 64x32 panels i
 
    [Service]
    Type=idle
+   ### THIS IS IF YOU HAVE A TEMP script
+   ExecStartPre=/home/pi/git/mk-scripts/tempest/getTempest.sh
    ExecStart=/home/pi/git/pi-clock/pi-clock --led-rows=32 --led-cols=64 -f /home/pi/matrix/rpi-rgb-led-matrix/fonts/6x10.bdf -x 2 -y 4 -S -1 --led-slowdown-gpio=4 -b 50 --led-pixel-mapper=V-mapper --led-chain=2
 
    [Install]
