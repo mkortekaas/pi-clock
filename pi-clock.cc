@@ -118,6 +118,16 @@ void paint_time(int x, int y, int letter_spacing, int space_spacing, FrameCanvas
   }
 }
 
+void paint_temp(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, int temp) {
+  Color colorGreen(0, 255, 0);
+  char token[12];
+  sprintf(token, "%d", temp);
+  while (token != NULL) {
+    rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), colorGreen, NULL, token, letter_spacing);
+    x += font->CharacterWidth('@') * strlen(token) + space_spacing;
+  }
+}
+
 //
 // MAIN
 //
@@ -226,7 +236,7 @@ int main(int argc, char *argv[]) {
 
   FrameCanvas *offscreen = matrix->CreateFrameCanvas();
 
-  // The time - we cheet and only get it once and expect clock_nanosleep() to keep us kosher
+  // The time - we cheat and only get it once and expect clock_nanosleep() to keep us kosher
   struct timespec next_time;
   next_time.tv_sec = time(NULL);
   next_time.tv_nsec = 0;
@@ -332,6 +342,11 @@ int main(int argc, char *argv[]) {
           // Can't happen (ha!)
           break;
        }
+      //      int show_temp = 1;
+      //      if (show_temp) {
+      //paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, 99);
+      //}
+
     }
 
     // Wait until we're ready to show it.
@@ -342,6 +357,7 @@ int main(int argc, char *argv[]) {
 
     // adjust second clock for all timezones and repeat
     next_time.tv_sec += 1;
+
 
   }
 

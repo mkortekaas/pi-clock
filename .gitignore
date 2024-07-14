@@ -2,6 +2,7 @@
 # C++ objects and libs
 *.o
 *.a
+*.bak
 
 # Resulting binary
 pi-clock

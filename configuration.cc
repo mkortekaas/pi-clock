@@ -17,7 +17,7 @@ const TZDataWanted tz_wanted_built_in[] = {
 	{ "America/Denver",      "DEN"},
 //	{ "America/Los_Angeles", "SEA"},
 	{ "America/New_York",    "NYC"},
-	{ "America/Sao_Paulo",   "BRA"},
+//	{ "America/Sao_Paulo",   "BRA"},
 //	{ "Pacific/Auckland",    "AKL"},
 //	{ "Asia/Katmandu",       "KTM"},
 	{ "Asia/Kolkata",        "BLR"},
@@ -25,6 +25,7 @@ const TZDataWanted tz_wanted_built_in[] = {
 //	{ "Asia/Singapore",      "SIN"},	// Singapore does not have a timezone name (but it should be SGT)
 //	{ "Asia/Tel_Aviv",       "TLV"},
 //	{ "Europe/London",       "LHR"},
+	{ "Australia/Sydney",    "SYD"},
 	{ "Europe/Paris",        "EUR"},	// "EUR" for Europe vs the specific city
 	{ "UTC",                 "UTC"}
 };
