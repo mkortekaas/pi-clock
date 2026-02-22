@@ -1,8 +1,20 @@
 # pi-clock
 
-# Start
+# Building
 
-Starting instructions are here: https://learn.adafruit.com/adafruit-rgb-matrix-plus-real-time-clock-hat-for-raspberry-pi/downloads?view=all. In particular there is a main script in there that configures the required library ( https://github.com/hzeller/rpi-rgb-led-matrix ) and installs what is required. In the case of this setup that is presumed to be in `/home/pi/matrix` (and then the rest of our code is in `/home/pi/git/pi-clock`). 
+1. Starting instructions are here: <https://learn.adafruit.com/adafruit-rgb-matrix-plus-real-time-clock-hat-for-raspberry-pi/downloads?view=all>.
+   - While [adafruit](https://learn.adafruit.com/adafruit-rgb-matrix-plus-real-time-clock-hat-for-raspberry-pi/downloads?view=all#install-using-script) has a `rgb-matrix.sh` file I did not have luck with it in the most recent version
+1. Clone this repo into `~/git/pi-clock`
+1. Clone a copy of <https://github.com/hzeller/rpi-rgb-led-matrix>.
+   - Best to install into `~/pi/rpi-rgb-led-matrix` as the later `Makefile` assumes that location
+      - I just did a straight `make` of this library
+      - The most recent commit-hash of the version I am running is `a6d11e56110da3442a7781db91d0889345ee8137`
+   - Build this prior to building the pi-clock as we need the library
+   - If you do not use the adafruit script you will require a `--led-gpio-mapping=adafruit-hat` argument added to your script as that tells the library which hardware to use
+1. `cd ~/git/pi-clock ; make` to build the pi-clock executable
+1. You can use the `clock-cli.sh` script which has various arguments already set
+   - You may need to change the arguments to fit your use case
+   - You may/may not need to add a `--led-no-hardware-pulse` argument
 
 # Parts
 Parts I purchased:
@@ -74,18 +86,6 @@ With two panels next to each other one above the other, use `sudo ./pi-clock --l
 Replace the `2` with whatever you have.
 
 These options are in addition to the required `--led-rows=64 --led-cols=64` options (swap to whatever size panel you are using).
-
-## Building
-1. You will need a copy of <https://github.com/hzeller/rpi-rgb-led-matrix>.
-   - The Makefile assumes this is in ~/pi/rpi-rgb-led-matrix
-   - This can be built just as a standard build.
-   - Though [adafruit](https://learn.adafruit.com/adafruit-rgb-matrix-plus-real-time-clock-hat-for-raspberry-pi/downloads?view=all#install-using-script) has a `rgb-matrix.sh` file I did not have luck with it in the most recent linux version
-   - This must be built prior to building this repo
-   - Follow the instructions for testing this library
-   - If you do not use the adafruit script you will require a `--led-gpio-mapping=adafruit-hat` argument added to your script as that tells the library which hardware to use
-1. `make` the pi-clock executable
-1. You can attempt to use the `clock-cli.sh` script which has various arguments already set
-   - You may/may not need to add a `--led-no-hardware-pulse` argument
 
 ## Run as a service
 
