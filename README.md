@@ -75,26 +75,38 @@ Replace the `2` with whatever you have.
 
 These options are in addition to the required `--led-rows=64 --led-cols=64` options (swap to whatever size panel you are using).
 
+## Building
+1. You will need a copy of <https://github.com/hzeller/rpi-rgb-led-matrix>.
+   - The Makefile assumes this is in ~/pi/rpi-rgb-led-matrix
+   - This can be built just as a standard build.
+   - Though [adafruit](https://learn.adafruit.com/adafruit-rgb-matrix-plus-real-time-clock-hat-for-raspberry-pi/downloads?view=all#install-using-script) has a `rgb-matrix.sh` file I did not have luck with it in the most recent linux version
+   - This must be built prior to building this repo
+   - Follow the instructions for testing this library
+   - If you do not use the adafruit script you will require a `--led-gpio-mapping=adafruit-hat` argument added to your script as that tells the library which hardware to use
+1. `make` the pi-clock executable
+1. You can attempt to use the `clock-cli.sh` script which has various arguments already set
+   - You may/may not need to add a `--led-no-hardware-pulse` argument
+
 ## Run as a service
 
 I created a service so this starts up automatically on startup (2 64x32 panels in one chain but mounted vertically)
 
 1. Create a file `/lib/systemd/system/pi-clock.service` with the following in it:
 ```
-   [Unit]
-   Description=PI Clock Service
-   After=multi-user.target
+[Unit]
+Description=PI Clock Service
+After=multi-user.target
 
-   [Service]
-   Type=idle
-   ### THIS IS IF YOU HAVE A TEMP script
-   ExecStartPre=/home/pi/git/mk-scripts/tempest/getTempest.sh
-   ExecStart=/home/pi/git/pi-clock/pi-clock --led-rows=32 --led-cols=64 -f /home/pi/matrix/rpi-rgb-led-matrix/fonts/6x10.bdf -x 2 -y 4 -S -1 --led-slowdown-gpio=4 -b 50 --led-pixel-mapper=V-mapper --led-chain=2
+[Service]
+Type=idle
+### THIS IS IF YOU HAVE A temperature script
+ExecStartPre=/home/pi/git/mk-scripts/tempest/getTempest.sh
+ExecStart=/home/pi/git/pi-clock/pi-clock --led-rows=32 --led-cols=64 -f /home/pi/git/rpi-rgb-led-matrix/fonts/6x10.bdf -x 2 -y 4 -S -1 --led-slowdown-gpio=4 -b 50 --led-pixel-mapper=V-mapper --led-chain=2 -C /home/pi/git/pi-clock/cities.txt -T -t /tmp/tempest_airtemp.txt --led-gpio-mapping=adafruit-hat
 
-   [Install]
-   WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target
 ```
-2. `systemctl enable pi-clock`
-3. `systemctl start pi-clock` (or reboot...)
+2. `sudo systemctl enable pi-clock`
+3. `sudo systemctl start pi-clock` (or reboot...)
 
 
