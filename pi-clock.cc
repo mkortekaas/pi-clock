@@ -274,13 +274,11 @@ int main(int argc, char *argv[]) {
     if (dim_display) {
       struct tm my_tm;
 
-      // Because this runs 24/7 we dim the display at night - kinda like an iPhone's Night Shift mode
-      // Ok, so by default, Night Shift turns on from sunset to sunrise - we dont' know when that is (currently)
-      // So we pick 7am to 7pm for now for daylight hours
+      // Because this runs 24/7 we dim the display at night - outside 6am to 9pm all text is shown in red
 
       set_timezone(my_timezone);
       localtime_r(&next_time.tv_sec, &my_tm);
-      is_dimmed = (my_tm.tm_hour < 7 || my_tm.tm_hour >= 19) ? true : false;
+      is_dimmed = (my_tm.tm_hour < 6 || my_tm.tm_hour >= 21) ? true : false;
       // uint8_t new_brightness = is_dimmed ? brightness/2 : brightness;
       // if (new_brightness != matrix->brightness()) {
       //   matrix->SetBrightness(new_brightness);
@@ -294,13 +292,12 @@ int main(int argc, char *argv[]) {
       set_timezone(tz[ii].tzString);
       localtime_r(&next_time.tv_sec, &tz[ii].tm);
       strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
-      if (highlight_own_tz && tz[ii].isMyTimezone)
+      if (dim_display && is_dimmed) {
+        tz[ii].tzColor = colorRed;
+      } else if (highlight_own_tz && tz[ii].isMyTimezone) {
         tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorGreen, colorGreen, colorGreen);
-      else
+      } else {
         tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
-      if (dim_display) {
-        // Choosing index 0 and 3 is a first stab
-        adjust_color(k_tempratures[is_dimmed?0:3], &tz[ii].tzColor);
       }
     }
 
