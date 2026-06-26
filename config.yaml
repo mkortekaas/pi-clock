@@ -18,6 +18,10 @@ display:
   date_format: "%H:%M:%S"
   show_city_name: false
   dim_at_night: true
+  dim_start_hour: 21    # start dimming at this hour (default 21 = 9 PM)
+  dim_end_hour: 6       # stop dimming at this hour (default 6 = 6 AM)
+  day_start_hour: 8     # overnight -> day color transition (default 8 = 8 AM)
+  evening_start_hour: 18 # day -> evening color transition (default 18 = 6 PM)
   highlight_own_tz: false
 
 cities:
@@ -32,7 +36,16 @@ cities:
   - timezone: UTC
     display: UTC
 
+colors:
+  overnight: {r: 0,   g: 0,   b: 255}  # blue
+  day:       {r: 255, g: 255, b: 255}  # white
+  evening:   {r: 255, g: 0,   b: 0}    # red
+  dimmed:    {r: 255, g: 0,   b: 0}    # red (used during dim_at_night hours)
+  own_tz:    {r: 0,   g: 255, b: 0}    # green (highlight_own_tz)
+  temp:      {r: 0,   g: 255, b: 0}    # green (temperature line)
+
 temperature:
   enabled: true
   file: /tmp/tempest_airtemp.txt
   interval: 5
+  prefix: "TEMP "

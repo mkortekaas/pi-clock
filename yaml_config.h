@@ -3,6 +3,12 @@
 #include <vector>
 #include <cstdint>
 
+struct RGBColor {
+    uint8_t r = 0;
+    uint8_t g = 0;
+    uint8_t b = 0;
+};
+
 struct CityEntry {
     std::string timezone;
     std::string display;
@@ -29,7 +35,19 @@ struct PiClockConfig {
     std::string date_format      = "%H:%M:%S";
     bool        show_city_name   = false;
     bool        dim_at_night     = false;
+    int         dim_start_hour   = 21;
+    int         dim_end_hour     = 6;
+    int         day_start_hour   = 8;
+    int         evening_start_hour = 18;
     bool        highlight_own_tz = false;
+
+    // Colors
+    RGBColor    color_overnight  = {0,   0,   255};
+    RGBColor    color_day        = {255, 255, 255};
+    RGBColor    color_evening    = {255, 0,   0};
+    RGBColor    color_dimmed     = {255, 0,   0};
+    RGBColor    color_own_tz     = {0,   255, 0};
+    RGBColor    color_temp       = {0,   255, 0};
 
     // Cities
     std::vector<CityEntry> cities;
@@ -38,6 +56,7 @@ struct PiClockConfig {
     bool        show_temp     = false;
     std::string temp_file;
     int         temp_interval = 5;
+    std::string temp_prefix   = "TEMP ";
 };
 
 bool load_yaml_config(const char *filename, PiClockConfig *config);

@@ -71,15 +71,6 @@ int time_sorter(const void *a, const void *b) {
   return strcmp(lhs->tzString, rhs->tzString);
 }
 
-//
-// Set color based on hour
-//
-Color tzColorSet(int hour, Color overnight, Color day, Color evening) {
-  Color retVal = overnight;
-  if (hour > 7) retVal = day;
-  if (hour > 17) retVal = evening;
-  return retVal;
-}
 
 void paint_airport_code(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
   rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->tzDisplay, letter_spacing);
@@ -167,6 +158,10 @@ int main(int argc, char *argv[]) {
   int   x_orig               = config.x_origin;
   int   y_orig               = config.y_origin;
   bool  dim_display          = config.dim_at_night;
+  int   dim_start_hour       = config.dim_start_hour;
+  int   dim_end_hour         = config.dim_end_hour;
+  int   day_start_hour       = config.day_start_hour;
+  int   evening_start_hour   = config.evening_start_hour;
   bool  highlight_own_tz     = config.highlight_own_tz;
   int   letter_spacing       = config.letter_spacing;
   int   space_spacing        = config.space_spacing;
@@ -177,17 +172,18 @@ int main(int argc, char *argv[]) {
                                  : const_cast<char *>(config.temp_file.c_str());
   int   temperature_interval = config.temp_interval;
 
-  // Create a number of base colors to utilize
-  Color colorRed(255, 0, 0);
-  Color colorGreen(0, 255, 0);
-  Color colorBlue(0, 0, 255);
-  Color colorWhite(255, 255, 255);
+  // Colors from config
+  Color colorOvernight(config.color_overnight.r, config.color_overnight.g, config.color_overnight.b);
+  Color colorDay      (config.color_day.r,       config.color_day.g,       config.color_day.b);
+  Color colorEvening  (config.color_evening.r,   config.color_evening.g,   config.color_evening.b);
+  Color colorDimmed   (config.color_dimmed.r,    config.color_dimmed.g,    config.color_dimmed.b);
+  Color colorOwnTz    (config.color_own_tz.r,    config.color_own_tz.g,    config.color_own_tz.b);
+  Color colorTemp     (config.color_temp.r,      config.color_temp.g,      config.color_temp.b);
 
   // background color will be black
   Color bg_color(0, 0, 0);
 
-  std::string prefix = "TEMP ";
-  FileReader temperatureFileReader(temperature_file, temperature_interval, prefix);
+  FileReader temperatureFileReader(temperature_file, temperature_interval, config.temp_prefix);
 
   rgb_matrix::Font* font = new rgb_matrix::Font();
   if (!font->LoadFont(config.font_file.c_str())) {
@@ -224,7 +220,7 @@ int main(int argc, char *argv[]) {
 
   matrix->SetBrightness(config.brightness);
 
-  if (!dim_display && config.brightness == 100 && FullSaturation(colorRed) && FullSaturation(bg_color))
+  if (!dim_display && config.brightness == 100 && FullSaturation(colorDimmed) && FullSaturation(bg_color))
     matrix->SetPWMBits(1);
 
   FrameCanvas *offscreen = matrix->CreateFrameCanvas();
@@ -255,11 +251,9 @@ int main(int argc, char *argv[]) {
     if (dim_display) {
       struct tm my_tm;
 
-      // Because this runs 24/7 we dim the display at night - outside 6am to 9pm all text is shown in red
-
       set_timezone(my_timezone);
       localtime_r(&next_time.tv_sec, &my_tm);
-      is_dimmed = (my_tm.tm_hour < 6 || my_tm.tm_hour >= 21) ? true : false;
+      is_dimmed = (my_tm.tm_hour < dim_end_hour || my_tm.tm_hour >= dim_start_hour);
       // uint8_t new_brightness = is_dimmed ? brightness/2 : brightness;
       // if (new_brightness != matrix->brightness()) {
       //   matrix->SetBrightness(new_brightness);
@@ -274,11 +268,14 @@ int main(int argc, char *argv[]) {
       localtime_r(&next_time.tv_sec, &tz[ii].tm);
       strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
       if (dim_display && is_dimmed) {
-        tz[ii].tzColor = colorRed;
+        tz[ii].tzColor = colorDimmed;
       } else if (highlight_own_tz && tz[ii].isMyTimezone) {
-        tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorGreen, colorGreen, colorGreen);
+        tz[ii].tzColor = colorOwnTz;
       } else {
-        tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
+        int h = tz[ii].tm.tm_hour;
+        tz[ii].tzColor = (h >= evening_start_hour) ? colorEvening
+                       : (h >= day_start_hour)     ? colorDay
+                                                   : colorOvernight;
       }
     }
 
@@ -336,7 +333,7 @@ int main(int argc, char *argv[]) {
 
     // if we are displaying temp as the last line
     if (show_temp == true) {
-      Color tempColor = (dim_display && is_dimmed) ? colorRed : colorGreen;
+      Color tempColor = (dim_display && is_dimmed) ? colorDimmed : colorTemp;
       paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, temperatureFileReader, tempColor);
     }
 
