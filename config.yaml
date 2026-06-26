@@ -1,0 +1,38 @@
+matrix:
+  hardware_mapping: adafruit-hat
+  rows: 32
+  cols: 64
+  chain_length: 2
+  parallel: 1
+  pixel_mapper: "V-mapper"
+  slowdown_gpio: 4
+
+display:
+  font: /home/pi/git/rpi-rgb-led-matrix/fonts/6x10.bdf
+  x_origin: 2
+  y_origin: 4
+  brightness: 50
+  letter_spacing: -1
+  space_spacing: 2
+  layout: d            # d=Downward, l=Left/Right
+  date_format: "%H:%M:%S"
+  show_city_name: false
+  dim_at_night: true
+  highlight_own_tz: false
+
+cities:
+  - timezone: America/Denver
+    display: DEN
+  - timezone: America/New_York
+    display: NYC
+  - timezone: Asia/Kolkata
+    display: BLR
+  - timezone: Europe/Paris
+    display: EUR
+  - timezone: UTC
+    display: UTC
+
+temperature:
+  enabled: true
+  file: /tmp/tempest_airtemp.txt
+  interval: 5

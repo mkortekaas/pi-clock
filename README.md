@@ -11,10 +11,10 @@
       - The most recent commit-hash of the version I am running is `a6d11e56110da3442a7781db91d0889345ee8137`
    - Build this prior to building the pi-clock as we need the library
    - If you do not use the adafruit script you will require a `--led-gpio-mapping=adafruit-hat` argument added to your script as that tells the library which hardware to use
+1. Install yaml-cpp: `sudo apt-get install libyaml-cpp-dev`
 1. `cd ~/git/pi-clock ; make` to build the pi-clock executable
-1. You can use the `clock-cli.sh` script which has various arguments already set
-   - You may need to change the arguments to fit your use case
-   - You may/may not need to add a `--led-no-hardware-pulse` argument
+1. Edit `config.yaml` to match your hardware and preferences
+1. You can use the `clock-cli.sh` script to run it, or pass `-c <path>` to specify a config file
 
 ## Parts
 
@@ -50,44 +50,33 @@ Parts I purchased:
 
 ## Added by [@mahtin](https://github.com/mahtin)
 
-  ```bash
-    -d                : Layout is down vs left/right
-    -d [d|l]          : Layout is:  D(own) or L(eft/right)
-    -c                : Show city name vs airport code
-    -s <spacing>      : Gap to replace space in time with in pixels (Default: 2)
-    -F <date-format>  : Date format (Default is HH:MM:SS via %H:%M:%S)
-    -C city-file      : city config filename
-    -D                : Brightness adjusted downward at night
-    -H                : Highlight your own timezone
-  ```
-
-If you are using a wide display (or two panels left-right) then it paints left right.
-If you have a square or tall setup, then use the `-d` flag to paint downwards.
-
-The `-c` flag will show city names vs three letter airport codes - it's not perfect.
-
-The `-F` flag allows you to play with the date format output. For example `-F '%H:%M:%S %Z'` will add a timezone string.
-You could use `%a` or `%A` for the day of the week, etc.
-See [strfime(3)](https://man7.org/linux/man-pages/man3/strftime.3.html) man page.
-
-An example command line for a 64x64 display could be:
+All settings are now in `config.yaml`. The binary takes a single argument:
 
   ```bash
-  $ sudo ./pi-clock --led-rows=64 --led-cols=64 --led-slowdown-gpio=4 --led-gpio-mapping=adafruit-hat -f $HZELLER/fonts/4x6.bdf -F '%H:%M:%S %Z' -x 1 -y 14 -G 2
+  sudo ./pi-clock -c config.yaml
   ```
 
-Where `$HZELLER` is wherever you have installed and compiled the initial code above
+Key display settings in `config.yaml`:
+
+| Key | Description | Default |
+|---|---|---|
+| `display.layout` | `d`=Downward, `l`=Left/Right | `d` |
+| `display.show_city_name` | City name instead of airport code | `false` |
+| `display.space_spacing` | Pixel gap for spaces in time | `2` |
+| `display.date_format` | strftime format string | `%H:%M:%S` |
+| `display.dim_at_night` | Reduce brightness outside 06:00–21:00 | `false` |
+| `display.highlight_own_tz` | Highlight local timezone in green | `false` |
+
+For `date_format`, see [strftime(3)](https://man7.org/linux/man-pages/man3/strftime.3.html). For example `"%H:%M:%S %Z"` adds a timezone abbreviation.
 
 ## Panel layout
 
-With a single panel, this section can be ignored.
+With a single panel, set `matrix.chain_length: 1` in `config.yaml`.
 
-With two panels next to each other side by side, use `sudo ./pi-clock --led-chain=2 ...` command options.
-With two panels next to each other one above the other, use `sudo ./pi-clock --led-chain=2 --led-pixel-mapper=V-mapper` command options.
+With two panels side by side, set `matrix.chain_length: 2` (and leave `pixel_mapper` empty).
+With two panels stacked vertically, set `matrix.chain_length: 2` and `matrix.pixel_mapper: "V-mapper"`.
 
-Replace the `2` with whatever you have.
-
-These options are in addition to the required `--led-rows=64 --led-cols=64` options (swap to whatever size panel you are using).
+Replace `2` with however many panels you have.
 
 ## Run as a service
 
@@ -104,11 +93,11 @@ I created a service so this starts up automatically on startup (2 64x32 panels i
   Type=idle
   ### THIS IS IF YOU HAVE A temperature script
   ExecStartPre=/home/pi/git/mk-scripts/tempest/getTempest.sh
-  ExecStart=/home/pi/git/pi-clock/pi-clock --led-rows=32 --led-cols=64 -f /home/pi/git/rpi-rgb-led-matrix/fonts/6x10.bdf -x 2 -y 4 -S -1 --led-slowdown-gpio=4 -b 50 --led-pixel-mapper=V-mapper --led-chain=2 -C /home/pi/git/pi-clock/cities.txt -T -t /tmp/tempest_airtemp.txt --led-gpio-mapping=adafruit-hat -D
+  ExecStart=/home/pi/git/pi-clock/pi-clock -c /home/pi/git/pi-clock/config.yaml
 
   [Install]
   WantedBy=multi-user.target
   ```
 
-2. `sudo systemctl enable pi-clock`
-3. `sudo systemctl start pi-clock` (or reboot...)
+1. `sudo systemctl enable pi-clock`
+1. `sudo systemctl start pi-clock` (or reboot...)
