@@ -48,26 +48,86 @@ Parts I purchased:
   - You will not need the extra 30cm cable above
   - You will need 4x screws instead
 
-## Added by [@mahtin](https://github.com/mahtin)
+## Configuration (`config.yaml`)
 
-All settings are now in `config.yaml`. The binary takes a single argument:
+All settings live in `config.yaml`. Pass it to the binary with `-c`:
 
-  ```bash
-  sudo ./pi-clock -c config.yaml
-  ```
+```bash
+sudo ./pi-clock -c config.yaml
+```
 
-Key display settings in `config.yaml`:
+### `matrix` — hardware settings
 
 | Key | Description | Default |
 |---|---|---|
-| `display.layout` | `d`=Downward, `l`=Left/Right | `d` |
-| `display.show_city_name` | City name instead of airport code | `false` |
-| `display.space_spacing` | Pixel gap for spaces in time | `2` |
-| `display.date_format` | strftime format string | `%H:%M:%S` |
-| `display.dim_at_night` | Reduce brightness outside 06:00–21:00 | `false` |
-| `display.highlight_own_tz` | Highlight local timezone in green | `false` |
+| `hardware_mapping` | LED driver mapping (`adafruit-hat`, `regular`, …) | `regular` |
+| `rows` | Rows per panel | `32` |
+| `cols` | Columns per panel | `64` |
+| `chain_length` | Number of panels daisy-chained | `1` |
+| `parallel` | Number of parallel chains | `1` |
+| `pixel_mapper` | Optional mapper, e.g. `V-mapper` for stacked panels | (empty) |
+| `slowdown_gpio` | GPIO slowdown — increase if display glitches | `1` |
 
-For `date_format`, see [strftime(3)](https://man7.org/linux/man-pages/man3/strftime.3.html). For example `"%H:%M:%S %Z"` adds a timezone abbreviation.
+### `display` — layout and timing
+
+| Key | Description | Default |
+|---|---|---|
+| `font` | Path to a `.bdf` font file | (required) |
+| `x_origin` | Horizontal pixel offset of text | `0` |
+| `y_origin` | Vertical pixel offset of text | `0` |
+| `brightness` | Panel brightness 0–100 | `100` |
+| `letter_spacing` | Pixel gap between letters (negative tightens) | `0` |
+| `space_spacing` | Pixel width of a space character | `2` |
+| `layout` | `d`=rows stacked Downward, `l`=Left/Right side-by-side | `d` |
+| `date_format` | [strftime(3)](https://man7.org/linux/man-pages/man3/strftime.3.html) format, e.g. `"%H:%M:%S %Z"` | `%H:%M:%S` |
+| `show_city_name` | Show full city name instead of the `display` label | `false` |
+| `dim_at_night` | Reduce brightness outside daytime hours | `false` |
+| `dim_start_hour` | Hour (24h) to start dimming | `21` |
+| `dim_end_hour` | Hour (24h) to stop dimming | `6` |
+| `day_start_hour` | Hour (24h) for overnight→day color transition | `8` |
+| `evening_start_hour` | Hour (24h) for day→evening color transition | `18` |
+| `highlight_own_tz` | Show the local timezone row in `colors.own_tz` color | `false` |
+
+### `colors` — RGB values per role
+
+Each entry takes `{r, g, b}` values in the range 0–255.
+
+| Key | When applied | Default |
+|---|---|---|
+| `overnight` | Before `day_start_hour` | blue `{0, 0, 255}` |
+| `day` | Between `day_start_hour` and `evening_start_hour` | white `{255, 255, 255}` |
+| `evening` | After `evening_start_hour` | red `{255, 0, 0}` |
+| `dimmed` | All rows during dim hours (when `dim_at_night: true`) | red `{255, 0, 0}` |
+| `own_tz` | Local timezone row (when `highlight_own_tz: true`) | green `{0, 255, 0}` |
+| `temp` | Temperature line | green `{0, 255, 0}` |
+
+### `cities` — timezones to display
+
+A list of entries. Order determines display order on the panel.
+
+```yaml
+cities:
+  - timezone: America/New_York
+    display: NYC
+  - timezone: Europe/Paris
+    display: EUR
+```
+
+| Key | Description |
+|---|---|
+| `timezone` | IANA timezone name (see `/usr/share/zoneinfo/`) |
+| `display` | Short label shown on the panel (airport code, city abbreviation, etc.) |
+
+### `temperature` — optional temperature line
+
+| Key | Description | Default |
+|---|---|---|
+| `enabled` | Show a temperature line on the display | `false` |
+| `file` | Path to a text file whose first line is the temperature value | (empty) |
+| `interval` | How often (in seconds) to re-read the file | `5` |
+| `prefix` | String prepended to the value, e.g. `"TEMP "` | `TEMP ` |
+
+The temperature file should contain a plain value such as `72.3F` or `22.4C`. A separate script (e.g. a cron job or `ExecStartPre` in the service unit) is responsible for keeping that file up to date.
 
 ## Panel layout
 
