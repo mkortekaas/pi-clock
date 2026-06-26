@@ -119,13 +119,12 @@ void paint_time(int x, int y, int letter_spacing, int space_spacing, FrameCanvas
   }
 }
 
-void paint_temp(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, FileReader fileReader) {
-  Color colorGreen(0, 255, 0);
+void paint_temp(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, FileReader fileReader, Color color) {
   std::string str = fileReader.getValue();
   std::istringstream iss(str);
   std::string token;
   while (iss >> token) {
-    rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), colorGreen, NULL, token.c_str(), letter_spacing);
+    rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), color, NULL, token.c_str(), letter_spacing);
     x += font->CharacterWidth('@') * token.length() + space_spacing;
   }
 }
@@ -355,7 +354,8 @@ int main(int argc, char *argv[]) {
 
     // if we are displaying temp as the last line
     if (show_temp == true) {
-      paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, temperatureFileReader);
+      Color tempColor = (dim_display && is_dimmed) ? colorRed : colorGreen;
+      paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, temperatureFileReader, tempColor);
     }
 
     // Wait until we're ready to show it.
