@@ -13,6 +13,7 @@
 #include "timezones.h"
 #include "color_temp.h"
 #include "FileReader.h"
+#include "yaml_config.h"
 
 #include <getopt.h>
 #include <signal.h>
@@ -31,25 +32,10 @@ static void InterruptHandler(int signo) {
 }
 
 static int usage(const char *progname) {
-  fprintf(stderr, "usage: %s [options]\n", progname);
+  fprintf(stderr, "usage: %s [-c <config.yaml>]\n", progname);
   fprintf(stderr, "Displays various timezones.\n");
   fprintf(stderr, "Options:\n");
-  rgb_matrix::PrintMatrixFlags(stderr);
-  fprintf(stderr,
-          "\t-f <font-file>    : Use given font.\n"
-          "\t-b <brightness>   : Sets brightness percent. Default: 100.\n"
-          "\t-x <x-origin>     : X-Origin of displaying text (Default: 0)\n"
-          "\t-y <y-origin>     : Y-Origin of displaying text (Default: 0)\n"
-          "\t-d [d|l]          : Layout is: D(own) or L(eft/right)\n"
-          "\t-c                : Show city name vs airport code\n"
-          "\t-C <file>         : city config filename\n"
-          "\t-s <spacing>      : Spacing pixels between words (Default: 2)\n"
-          "\t-S <spacing>      : Spacing pixels between letters (Default: 0)\n"
-          "\t-F <date-format>  : Date format (Default is HH:MM:SS via %%H:%%M:%%S)\n"
-          "\t-D                : Dim brightness downward at night\n"
-          "\t-H                : Highlight your own timezone\n"
-          );
-
+  fprintf(stderr, "\t-c <config-file> : YAML config file (default: config.yaml)\n");
   return 1;
 }
 
@@ -85,15 +71,6 @@ int time_sorter(const void *a, const void *b) {
   return strcmp(lhs->tzString, rhs->tzString);
 }
 
-//
-// Set color based on hour
-//
-Color tzColorSet(int hour, Color overnight, Color day, Color evening) {
-  Color retVal = overnight;
-  if (hour > 7) retVal = day;
-  if (hour > 17) retVal = evening;
-  return retVal;
-}
 
 void paint_airport_code(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
   rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->tzDisplay, letter_spacing);
@@ -134,100 +111,101 @@ void paint_temp(int x, int y, int letter_spacing, int space_spacing, FrameCanvas
 // MAIN
 //
 int main(int argc, char *argv[]) {
-  RGBMatrix::Options matrix_options;
-  rgb_matrix::RuntimeOptions runtime_opt;
-  if (!rgb_matrix::ParseOptionsFromFlags(&argc, &argv,
-                                         &matrix_options, &runtime_opt)) {
-    return usage(argv[0]);
-  }
-
-  // time format - default to H:M:S
-  //   Probably should make this an argument...
-  const char *tzFmtStr = "%H:%M:%S";
-
-  // Create a number of base colors to utilize
-  Color colorRed(255, 0, 0);
-  Color colorGreen(0, 255, 0);
-  Color colorBlue(0, 0, 255);
-  Color colorWhite(255, 255, 255);
-
-  // background color will be black 
-  Color bg_color(0, 0, 0);
-
-  char *bdf_font_file = NULL;
-  int x_orig = 0;
-  int y_orig = 0;
-  uint8_t brightness = 100;
-  bool dim_display = false;
-  bool highlight_own_tz = false;
-  int letter_spacing = 0;
-  int space_spacing = 2;
-  bool city_name = false;
-  char layout_choice = 'd';
-  char *date_format = NULL;
-  char *city_file = NULL;
-  bool show_temp = false;
-  char *temperature_file = NULL;
-  int temperature_interval = 5;
+  const char *config_file = "config.yaml";
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:b:S:cC:d:s:F:DHTt:i:")) != -1) {
+  while ((opt = getopt(argc, argv, "c:")) != -1) {
     switch (opt) {
-    case 'b': brightness = atoi(optarg); break;
-    case 'x': x_orig = atoi(optarg); break;
-    case 'y': y_orig = atoi(optarg); break;
-    case 'f': bdf_font_file = strdup(optarg); break;
-    case 'S': letter_spacing = atoi(optarg); break;
-    case 'c': city_name = true; break;
-    case 'C': city_file = strdup(optarg); break;
-    case 'd': layout_choice = optarg[0]; break;
-    case 's': space_spacing = atoi(optarg); break;
-    case 'F': date_format = strdup(optarg); break;
-    case 'D': dim_display = true; break;
-    case 'H': highlight_own_tz = true; break;
-    case 'T': show_temp = true; break;
-    case 't': temperature_file = strdup(optarg); break;
-    case 'i': temperature_interval = atoi(optarg); break;
-    default:
-      return usage(argv[0]);
+    case 'c': config_file = optarg; break;
+    default:  return usage(argv[0]);
     }
   }
 
-  if (date_format && strlen(date_format) > 0) {
-    tzFmtStr = date_format;
+  PiClockConfig config;
+  if (!load_yaml_config(config_file, &config)) {
+    fprintf(stderr, "Could not load config from '%s'\n", config_file);
+    return 1;
   }
 
-  if (layout_choice != 'd' && layout_choice != 'l' && layout_choice != 'm') {
-    fprintf(stderr, "Bad -d option (only d=Downward, l=Left/Right, m=Mark's special)\n");
-    return usage(argv[0]);
+  // Validate
+  if (config.layout != 'd' && config.layout != 'l') {
+    fprintf(stderr, "Bad layout '%c' in config (only d=Downward, l=Left/Right)\n", config.layout);
+    return 1;
+  }
+  if (config.font_file.empty()) {
+    fprintf(stderr, "display.font must be set in config\n");
+    return 1;
+  }
+  if (config.brightness < 1 || config.brightness > 100) {
+    fprintf(stderr, "display.brightness must be 1-100\n");
+    return 1;
   }
 
-  if (bdf_font_file == NULL) {
-    fprintf(stderr, "Need to specify BDF font-file with -f\n");
-    return usage(argv[0]);
-  }
+  // Build matrix options from config
+  RGBMatrix::Options matrix_options;
+  rgb_matrix::RuntimeOptions runtime_opt;
+  matrix_options.hardware_mapping = config.hardware_mapping.c_str();
+  matrix_options.rows             = config.rows;
+  matrix_options.cols             = config.cols;
+  matrix_options.chain_length     = config.chain_length;
+  matrix_options.parallel         = config.parallel;
+  if (!config.pixel_mapper.empty())
+    matrix_options.pixel_mapper_config = config.pixel_mapper.c_str();
+  runtime_opt.gpio_slowdown = config.gpio_slowdown;
 
-  std::string prefix = "TEMP "; // Replace with your desired prefix
-  FileReader temperatureFileReader(temperature_file, temperature_interval, prefix);
+  // Convenience aliases used throughout
+  const char *tzFmtStr       = config.date_format.c_str();
+  int   x_orig               = config.x_origin;
+  int   y_orig               = config.y_origin;
+  bool  dim_display          = config.dim_at_night;
+  int   dim_start_hour       = config.dim_start_hour;
+  int   dim_end_hour         = config.dim_end_hour;
+  int   day_start_hour       = config.day_start_hour;
+  int   evening_start_hour   = config.evening_start_hour;
+  bool  highlight_own_tz     = config.highlight_own_tz;
+  int   letter_spacing       = config.letter_spacing;
+  int   space_spacing        = config.space_spacing;
+  bool  city_name     = config.show_city_name;
+  char  layout_choice = config.layout;
+  bool  show_temp            = config.show_temp;
+  char *temperature_file     = config.temp_file.empty() ? nullptr
+                                 : const_cast<char *>(config.temp_file.c_str());
+  int   temperature_interval = config.temp_interval;
 
-  /*
-   * Load font. This needs to be a filename with a bdf bitmap font.
-   */
+  // Colors from config
+  Color colorOvernight(config.color_overnight.r, config.color_overnight.g, config.color_overnight.b);
+  Color colorDay      (config.color_day.r,       config.color_day.g,       config.color_day.b);
+  Color colorEvening  (config.color_evening.r,   config.color_evening.g,   config.color_evening.b);
+  Color colorDimmed   (config.color_dimmed.r,    config.color_dimmed.g,    config.color_dimmed.b);
+  Color colorOwnTz    (config.color_own_tz.r,    config.color_own_tz.g,    config.color_own_tz.b);
+  Color colorTemp     (config.color_temp.r,      config.color_temp.g,      config.color_temp.b);
+
+  // background color will be black
+  Color bg_color(0, 0, 0);
+
+  FileReader temperatureFileReader(temperature_file, temperature_interval, config.temp_prefix);
+
   rgb_matrix::Font* font = new rgb_matrix::Font();
-  if (!font->LoadFont(bdf_font_file)) {
-    fprintf(stderr, "Couldn't load font '%s'\n", bdf_font_file);
+  if (!font->LoadFont(config.font_file.c_str())) {
+    fprintf(stderr, "Couldn't load font '%s'\n", config.font_file.c_str());
     return 1;
   }
 
-  if (brightness < 1 || brightness > 100) {
-    fprintf(stderr, "Brightness is outside usable range.\n");
+  if (config.cities.empty()) {
+    fprintf(stderr, "No cities defined in config\n");
     return 1;
   }
-
-  // This inits the city list from built in code if no file provided..
-  if (read_city_list(city_file) == 0) {
-    fprintf(stderr, "Couldn't load city list file '%s'\n", city_file);
-    return 1;
+  {
+    size_t n = config.cities.size();
+    TZDataWanted *p = (TZDataWanted *)malloc(sizeof(TZDataWanted) * (n + 1));
+    for (size_t i = 0; i < n; i++) {
+      p[i].tzString  = strdup(config.cities[i].timezone.c_str());
+      p[i].tzDisplay = strdup(config.cities[i].display.c_str());
+    }
+    p[n].tzString  = nullptr;
+    p[n].tzDisplay = nullptr;
+    tz_wanted     = p;
+    tz_wanted_len = n;
   }
 
   RGBMatrix *matrix = rgb_matrix::CreateMatrixFromOptions(matrix_options,
@@ -240,9 +218,9 @@ int main(int argc, char *argv[]) {
     matrix_options.cols, matrix_options.rows,
     matrix_options.chain_length);
 
-  matrix->SetBrightness(brightness);
+  matrix->SetBrightness(config.brightness);
 
-  if (!dim_display && brightness == 100 && FullSaturation(colorRed) && FullSaturation(bg_color))
+  if (!dim_display && config.brightness == 100 && FullSaturation(colorDimmed) && FullSaturation(bg_color))
     matrix->SetPWMBits(1);
 
   FrameCanvas *offscreen = matrix->CreateFrameCanvas();
@@ -273,11 +251,9 @@ int main(int argc, char *argv[]) {
     if (dim_display) {
       struct tm my_tm;
 
-      // Because this runs 24/7 we dim the display at night - outside 6am to 9pm all text is shown in red
-
       set_timezone(my_timezone);
       localtime_r(&next_time.tv_sec, &my_tm);
-      is_dimmed = (my_tm.tm_hour < 6 || my_tm.tm_hour >= 21) ? true : false;
+      is_dimmed = (my_tm.tm_hour < dim_end_hour || my_tm.tm_hour >= dim_start_hour);
       // uint8_t new_brightness = is_dimmed ? brightness/2 : brightness;
       // if (new_brightness != matrix->brightness()) {
       //   matrix->SetBrightness(new_brightness);
@@ -292,11 +268,14 @@ int main(int argc, char *argv[]) {
       localtime_r(&next_time.tv_sec, &tz[ii].tm);
       strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
       if (dim_display && is_dimmed) {
-        tz[ii].tzColor = colorRed;
+        tz[ii].tzColor = colorDimmed;
       } else if (highlight_own_tz && tz[ii].isMyTimezone) {
-        tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorGreen, colorGreen, colorGreen);
+        tz[ii].tzColor = colorOwnTz;
       } else {
-        tz[ii].tzColor = tzColorSet(tz[ii].tm.tm_hour, colorBlue, colorWhite, colorRed);
+        int h = tz[ii].tm.tm_hour;
+        tz[ii].tzColor = (h >= evening_start_hour) ? colorEvening
+                       : (h >= day_start_hour)     ? colorDay
+                                                   : colorOvernight;
       }
     }
 
@@ -354,7 +333,7 @@ int main(int argc, char *argv[]) {
 
     // if we are displaying temp as the last line
     if (show_temp == true) {
-      Color tempColor = (dim_display && is_dimmed) ? colorRed : colorGreen;
+      Color tempColor = (dim_display && is_dimmed) ? colorDimmed : colorTemp;
       paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, temperatureFileReader, tempColor);
     }
 

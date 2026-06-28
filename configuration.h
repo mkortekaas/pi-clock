@@ -22,5 +22,3 @@ struct TZDataWanted {
 extern TZDataWanted *tz_wanted;
 extern size_t tz_wanted_len;
 
-extern size_t read_city_list(const char *filename);
-
