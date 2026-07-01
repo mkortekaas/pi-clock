@@ -25,7 +25,7 @@ display:
   highlight_own_tz: true
   # Per-row vertical nudge in pixels, top row first (positive = down, negative = up).
   # Rows not listed are unshifted. Handy for skipping over a burned-out panel line.
-  row_offsets: [0, 0, 0, 1]
+  row_offsets: [0, 0, 0, 1, 1]
 
 cities:
   - timezone: America/Denver
