@@ -87,6 +87,7 @@ sudo ./pi-clock -c config.yaml
 | `day_start_hour` | Hour (24h) for overnight→day color transition | `8` |
 | `evening_start_hour` | Hour (24h) for day→evening color transition | `18` |
 | `highlight_own_tz` | Show the local timezone row in `colors.own_tz` color | `false` |
+| `row_offsets` | Per-row vertical pixel nudge, top row first (positive = down, negative = up); rows not listed are unshifted. E.g. `[0, 0, 0, 1]` drops only the 4th row by one pixel — useful for dodging a burned-out panel line | `[]` |
 
 ### `colors` — RGB values per role
 

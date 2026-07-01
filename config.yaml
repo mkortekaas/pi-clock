@@ -23,6 +23,9 @@ display:
   day_start_hour: 8     # overnight -> day color transition (default 8 = 8 AM)
   evening_start_hour: 18 # day -> evening color transition (default 18 = 6 PM)
   highlight_own_tz: true
+  # Per-row vertical nudge in pixels, top row first (positive = down, negative = up).
+  # Rows not listed are unshifted. Handy for skipping over a burned-out panel line.
+  row_offsets: [0, 0, 0, 1]
 
 cities:
   - timezone: America/Denver
