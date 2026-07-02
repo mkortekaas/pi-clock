@@ -72,6 +72,11 @@ int time_sorter(const void *a, const void *b) {
 }
 
 
+// Per-row vertical nudge from display.row_offsets (top row = 0); unlisted rows get 0
+static int row_y_offset(const std::vector<int> &offsets, size_t row) {
+  return row < offsets.size() ? offsets[row] : 0;
+}
+
 void paint_airport_code(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
   rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->tzDisplay, letter_spacing);
 }
@@ -291,25 +296,28 @@ int main(int argc, char *argv[]) {
     int x = x_orig;
     int y = y_orig;
     int left_right = 0;
+    size_t row = 0;
 
     // paint the screen but don't display it till after the loop
     // we are actually painting the upcomming time vs the time now
 
     for (size_t ii=0;ii<tz_length;ii=ii+1) {
+      int y_row = y + row_y_offset(config.row_offsets, row);
       if (city_name)
-        paint_city_name(x, y, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
+        paint_city_name(x, y_row, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
       else
-        paint_airport_code(x, y, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
+        paint_airport_code(x, y_row, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
 
       x += font->CharacterWidth('@') * strlen(tz[ii].tzDisplay) + space_spacing;
-      paint_time(x, y, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
+      paint_time(x, y_row, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
 
-      // deal with layout 
+      // deal with layout
       switch (layout_choice) {
         case 'd':
           // simple - just head downwards! - don't change x
           x = x_orig;
           y += font->height();
+          row += 1;
           break;
 
         case 'l':
@@ -318,6 +326,7 @@ int main(int argc, char *argv[]) {
             // move down
             x = x_orig;
             y += font->height();
+            row += 1;
           } else {
             // move right -- you want this to start at the halfway point of the total width
             x = matrix->width()/2 + x_orig;
@@ -334,7 +343,7 @@ int main(int argc, char *argv[]) {
     // if we are displaying temp as the last line
     if (show_temp == true) {
       Color tempColor = (dim_display && is_dimmed) ? colorDimmed : colorTemp;
-      paint_temp(x, y, letter_spacing, space_spacing, offscreen, font, temperatureFileReader, tempColor);
+      paint_temp(x, y + row_y_offset(config.row_offsets, row), letter_spacing, space_spacing, offscreen, font, temperatureFileReader, tempColor);
     }
 
     // Wait until we're ready to show it.

@@ -51,6 +51,11 @@ bool load_yaml_config(const char *filename, PiClockConfig *config)
         config->day_start_hour     = d["day_start_hour"].as<int>(config->day_start_hour);
         config->evening_start_hour = d["evening_start_hour"].as<int>(config->evening_start_hour);
         config->highlight_own_tz   = d["highlight_own_tz"].as<bool>(config->highlight_own_tz);
+        if (d["row_offsets"] && d["row_offsets"].IsSequence()) {
+            config->row_offsets.clear();
+            for (const auto &entry : d["row_offsets"])
+                config->row_offsets.push_back(entry.as<int>(0));
+        }
     }
 
     if (doc["colors"]) {

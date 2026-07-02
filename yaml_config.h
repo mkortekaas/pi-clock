@@ -40,6 +40,9 @@ struct PiClockConfig {
     int         day_start_hour   = 8;
     int         evening_start_hour = 18;
     bool        highlight_own_tz = false;
+    // Per-row vertical pixel nudge, indexed by display row (top=0).
+    // Positive moves the row down, negative up; rows beyond the list are unshifted.
+    std::vector<int> row_offsets;
 
     // Colors
     RGBColor    color_overnight  = {0,   0,   255};
