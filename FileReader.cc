@@ -1,26 +1,21 @@
 #include "FileReader.h"
 #include <fstream>
 #include <iostream>
-#include <cstring>
 
-FileReader::FileReader(char* filePath, int intervalMinutes, const std::string& prefix)
+FileReader::FileReader(const std::string& filePath, int intervalMinutes, const std::string& prefix)
   : filePath(filePath), intervalMinutes(intervalMinutes), prefix(prefix), lastReadTime(std::chrono::steady_clock::now()) {
-  if (filePath != nullptr) {
+  if (!filePath.empty()) {
     readFile();
   } else {
     lastValue = prefix; // Initialize with prefix if no file is given
   }
 }
 
-FileReader::~FileReader() {
-  // No dynamic memory to free
-}
-
 std::string FileReader::getValue() {
   auto now = std::chrono::steady_clock::now();
   auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(now - lastReadTime).count();
-  
-  if (elapsedMinutes >= intervalMinutes && filePath != nullptr) {
+
+  if (elapsedMinutes >= intervalMinutes && !filePath.empty()) {
     readFile();
     lastReadTime = now;
   }
@@ -28,21 +23,16 @@ std::string FileReader::getValue() {
 }
 
 void FileReader::readFile() {
-  if (filePath == nullptr) {
-    return; // Avoid trying to read if filePath is null
-  }
-  
   std::ifstream file(filePath);
-  if (file.is_open()) {
-    std::string line;
-    std::string content = prefix; // Start with the prefix
-    while (getline(file, line)) {
-      content += line + "\n";
-    }
-    file.close();
-    
-    lastValue = content;
-  } else {
+  if (!file.is_open()) {
     std::cerr << "Unable to open file: " << filePath << std::endl;
+    return;
   }
+
+  std::string line;
+  std::string content = prefix; // Start with the prefix
+  while (getline(file, line)) {
+    content += line + "\n";
+  }
+  lastValue = content;
 }

@@ -6,17 +6,17 @@
 
 class FileReader {
 public:
-  FileReader(char* filePath, int intervalMinutes, const std::string& prefix = "");
-  ~FileReader();
+  // An empty filePath means "no file": getValue() then returns just the prefix
+  FileReader(const std::string& filePath, int intervalMinutes, const std::string& prefix = "");
   std::string getValue();
 
 private:
-  char* filePath; // Keep filePath as a char* to directly handle nullptr
+  std::string filePath;
   int intervalMinutes;
   std::string prefix;
   std::string lastValue;
   std::chrono::steady_clock::time_point lastReadTime;
-  
+
   void readFile();
 };
 

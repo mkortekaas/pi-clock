@@ -1,24 +1,19 @@
+// -*- mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; -*-
 //
-// Config info is stored as follows:
+// Per-frame state for one displayed timezone
 //
 
-using namespace rgb_matrix;
+#pragma once
 
-// internal structure to make code easier below
+#include "graphics.h"
+
+#include <ctime>
+#include <string>
+
 struct TZData {
-	char *textBuffer;
-	const char *tzString;
-	const char *tzDisplay;
-	struct tm tm;
-	Color tzColor;
-	bool isMyTimezone;
-}; 
-
-struct TZDataWanted {
-	const char *tzString;
-	const char *tzDisplay;
-}; 
-
-extern TZDataWanted *tz_wanted;
-extern size_t tz_wanted_len;
-
+  std::string tzString;
+  std::string tzDisplay;
+  std::string timeText;
+  struct tm tm;
+  rgb_matrix::Color tzColor;
+};

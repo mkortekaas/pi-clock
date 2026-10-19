@@ -3,34 +3,22 @@
 
 #include "timezones.h"
 
+#include <fstream>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
-#include <unistd.h>
-#include <fcntl.h>
 
-static const char *timezone_file = "/etc/timezone";
+std::string get_timezone(const char *timezone_file) {
+  const char *env_tz = getenv("TZ");
+  if (env_tz != NULL && env_tz[0] != '\0')
+    return env_tz;
 
-char *get_timezone() {
-  char *timezone;
-  timezone = getenv("TZ");
-  if (timezone != NULL && timezone[0] != '\0')
-    return timezone;
-  const int fd = open(timezone_file, O_RDONLY);
-  if (fd == -1)
-    return NULL;
-  static char timezone_s[80+1];
-  const int n = read(fd, timezone_s, 80);
-  close(fd);
-  if (n <= 0)
-    return NULL;
-	char *p = strchr(timezone_s, '\n');
-	if (p) *p = '\0';
-  return timezone_s;
+  std::ifstream file(timezone_file);
+  std::string timezone;
+  std::getline(file, timezone);
+  return timezone;
 }
 
-void set_timezone(const char *timezone) {
-  setenv("TZ", timezone, 1);
+void set_timezone(const std::string &timezone) {
+  setenv("TZ", timezone.c_str(), 1);
   tzset();
 }
-

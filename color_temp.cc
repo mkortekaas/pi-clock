@@ -6,7 +6,7 @@
 //
 
 #include <math.h>
-#include <bits/stdc++.h>
+#include <cstdint>
 
 // You can go down a rabbit hole with color temps. I would recommend reading:
 //   https://www.macworld.com/article/227655/ios-93-the-new-night-shift-feature-probably-wont-help-you-sleep-better.html

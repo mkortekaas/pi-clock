@@ -1,6 +1,6 @@
 // -*- mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; -*-
 //
-// Modified from 
+// Modified from
 //   https://github.com/hzeller/rpi-rgb-led-matrix/blob/master/examples-api-use/clock.cc
 //
 // This code is public domain - the source file is GPL v2
@@ -9,22 +9,27 @@
 #include "led-matrix.h"
 #include "graphics.h"
 
+#include "clock_utils.h"
 #include "configuration.h"
 #include "timezones.h"
 #include "color_temp.h"
 #include "FileReader.h"
 #include "yaml_config.h"
 
+#include <algorithm>
 #include <getopt.h>
 #include <signal.h>
+#include <sstream>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <string>
 #include <time.h>
 #include <unistd.h>
-#include <bits/stdc++.h>
+#include <vector>
 
 using namespace rgb_matrix;
+
+// strftime output buffer; formats are short, e.g. "%H:%M:%S"
+static const size_t TIME_TEXT_MAX = 80;
 
 volatile bool interrupt_received = false;
 static void InterruptHandler(int signo) {
@@ -55,60 +60,108 @@ void adjust_color(int temp, Color *c)
   c->b = float(c->b) * (float(b)/256.0);
 }
 
-//
-// Sorting helper - Hour & Minute & Second based
-//
-int time_sorter(const void *a, const void *b) {
-  TZData *lhs = (TZData *)a;
-  TZData *rhs = (TZData *)b;
-  if (lhs->tm.tm_hour != rhs->tm.tm_hour)
-      return lhs->tm.tm_hour < rhs->tm.tm_hour;
-  if (lhs->tm.tm_min != rhs->tm.tm_min)
-      return lhs->tm.tm_min < rhs->tm.tm_min;
-  if (lhs->tm.tm_sec != rhs->tm.tm_sec)
-      return lhs->tm.tm_sec < rhs->tm.tm_sec;
-  // final breaker is the name
-  return strcmp(lhs->tzString, rhs->tzString);
+static Color to_color(const RGBColor &c) {
+  return Color(c.r, c.g, c.b);
 }
 
+struct ColorScheme {
+  Color overnight;
+  Color day;
+  Color evening;
+  Color dimmed;
+  Color own_tz;
+  Color temp;
+};
+
+static ColorScheme colors_from_config(const PiClockConfig &config) {
+  return ColorScheme{
+    to_color(config.color_overnight), to_color(config.color_day),
+    to_color(config.color_evening),   to_color(config.color_dimmed),
+    to_color(config.color_own_tz),    to_color(config.color_temp),
+  };
+}
+
+static Color zone_color(const struct tm &tm, bool is_my_timezone, bool is_dimmed,
+                        const PiClockConfig &config, const ColorScheme &colors) {
+  if (is_dimmed)
+    return colors.dimmed;
+  if (config.highlight_own_tz && is_my_timezone)
+    return colors.own_tz;
+  if (tm.tm_hour >= config.evening_start_hour)
+    return colors.evening;
+  if (tm.tm_hour >= config.day_start_hour)
+    return colors.day;
+  return colors.overnight;
+}
+
+// Local time, text and color of every configured city at `when`, in display order
+static std::vector<TZData> snapshot_zones(time_t when, bool is_dimmed, const std::string &my_timezone,
+                                          const PiClockConfig &config, const ColorScheme &colors) {
+  std::vector<TZData> zones;
+  zones.reserve(config.cities.size());
+  for (const CityEntry &city : config.cities) {
+    TZData zone;
+    zone.tzString  = city.timezone;
+    zone.tzDisplay = city.display;
+    set_timezone(city.timezone);
+    localtime_r(&when, &zone.tm);
+    char text[TIME_TEXT_MAX + 1];
+    strftime(text, sizeof(text), config.date_format.c_str(), &zone.tm);
+    zone.timeText = text;
+    zone.tzColor  = zone_color(zone.tm, city.timezone == my_timezone, is_dimmed, config, colors);
+    zones.push_back(zone);
+  }
+
+  std::sort(zones.begin(), zones.end(), [](const TZData &lhs, const TZData &rhs) {
+    return shows_before(lhs.tm, lhs.tzString, rhs.tm, rhs.tzString);
+  });
+  return zones;
+}
+
+static bool is_night(time_t when, const std::string &my_timezone, const PiClockConfig &config) {
+  struct tm my_tm;
+  set_timezone(my_timezone);
+  localtime_r(&when, &my_tm);
+  return my_tm.tm_hour < config.dim_end_hour || my_tm.tm_hour >= config.dim_start_hour;
+}
 
 // Per-row vertical nudge from display.row_offsets (top row = 0); unlisted rows get 0
 static int row_y_offset(const std::vector<int> &offsets, size_t row) {
   return row < offsets.size() ? offsets[row] : 0;
 }
 
-void paint_airport_code(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
-  rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, this_tz->tzDisplay, letter_spacing);
+void paint_airport_code(int x, int y, int letter_spacing, FrameCanvas *canvas, const Font &font, const TZData &zone) {
+  DrawText(canvas, font, x, y + font.baseline(), zone.tzColor, NULL, zone.tzDisplay.c_str(), letter_spacing);
 }
 
-void paint_city_name(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
-  char *p, city[80+1];
-  p = index((char *)this_tz->tzString, '/');
-  strncpy(city, p+1, 80);
-  int l = strlen(city);
-  int offset = (this_tz->tm.tm_min * 60 + this_tz->tm.tm_sec) % (l-2);
-  city[offset+3] = '\0';
-  rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, &city[offset], letter_spacing);
+void paint_city_name(int x, int y, int letter_spacing, FrameCanvas *canvas, const Font &font, const TZData &zone) {
+  const std::string city = city_window(zone.tzString, zone.tm.tm_min * 60 + zone.tm.tm_sec);
+  DrawText(canvas, font, x, y + font.baseline(), zone.tzColor, NULL, city.c_str(), letter_spacing);
 }
 
-void paint_time(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, TZData *this_tz) {
-  // we handle spaces special - we space them based on space_spacing
-  char *token = strtok(this_tz->textBuffer, " ");
-  while (token != NULL) {
-    rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), this_tz->tzColor, NULL, token, letter_spacing);
-    x += font->CharacterWidth('@') * strlen(token) + space_spacing;
-    token = strtok(NULL, " ");
-  }
-}
-
-void paint_temp(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, rgb_matrix::Font *font, FileReader fileReader, Color color) {
-  std::string str = fileReader.getValue();
-  std::istringstream iss(str);
+// Draw space-separated words; the gap between words is space_spacing pixels
+// rather than the font's own space glyph
+void paint_words(int x, int y, int letter_spacing, int space_spacing, FrameCanvas *canvas, const Font &font,
+                 const std::string &text, const Color &color) {
+  std::istringstream iss(text);
   std::string token;
   while (iss >> token) {
-    rgb_matrix::DrawText(canvas, *font, x, y + font->baseline(), color, NULL, token.c_str(), letter_spacing);
-    x += font->CharacterWidth('@') * token.length() + space_spacing;
+    DrawText(canvas, font, x, y + font.baseline(), color, NULL, token.c_str(), letter_spacing);
+    x += font.CharacterWidth('@') * token.length() + space_spacing;
   }
+}
+
+// Returns an error message, or empty when the config is usable
+static std::string validate_config(const PiClockConfig &config) {
+  if (config.layout != 'd' && config.layout != 'l')
+    return std::string("Bad layout '") + config.layout + "' in config (only d=Downward, l=Left/Right)";
+  if (config.font_file.empty())
+    return "display.font must be set in config";
+  if (config.brightness < 1 || config.brightness > 100)
+    return "display.brightness must be 1-100";
+  if (config.cities.empty())
+    return "No cities defined in config";
+  return "";
 }
 
 
@@ -132,17 +185,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // Validate
-  if (config.layout != 'd' && config.layout != 'l') {
-    fprintf(stderr, "Bad layout '%c' in config (only d=Downward, l=Left/Right)\n", config.layout);
-    return 1;
-  }
-  if (config.font_file.empty()) {
-    fprintf(stderr, "display.font must be set in config\n");
-    return 1;
-  }
-  if (config.brightness < 1 || config.brightness > 100) {
-    fprintf(stderr, "display.brightness must be 1-100\n");
+  const std::string config_error = validate_config(config);
+  if (!config_error.empty()) {
+    fprintf(stderr, "%s\n", config_error.c_str());
     return 1;
   }
 
@@ -159,58 +204,26 @@ int main(int argc, char *argv[]) {
   runtime_opt.gpio_slowdown = config.gpio_slowdown;
 
   // Convenience aliases used throughout
-  const char *tzFmtStr       = config.date_format.c_str();
   int   x_orig               = config.x_origin;
   int   y_orig               = config.y_origin;
   bool  dim_display          = config.dim_at_night;
-  int   dim_start_hour       = config.dim_start_hour;
-  int   dim_end_hour         = config.dim_end_hour;
-  int   day_start_hour       = config.day_start_hour;
-  int   evening_start_hour   = config.evening_start_hour;
-  bool  highlight_own_tz     = config.highlight_own_tz;
   int   letter_spacing       = config.letter_spacing;
   int   space_spacing        = config.space_spacing;
   bool  city_name     = config.show_city_name;
   char  layout_choice = config.layout;
   bool  show_temp            = config.show_temp;
-  char *temperature_file     = config.temp_file.empty() ? nullptr
-                                 : const_cast<char *>(config.temp_file.c_str());
-  int   temperature_interval = config.temp_interval;
 
-  // Colors from config
-  Color colorOvernight(config.color_overnight.r, config.color_overnight.g, config.color_overnight.b);
-  Color colorDay      (config.color_day.r,       config.color_day.g,       config.color_day.b);
-  Color colorEvening  (config.color_evening.r,   config.color_evening.g,   config.color_evening.b);
-  Color colorDimmed   (config.color_dimmed.r,    config.color_dimmed.g,    config.color_dimmed.b);
-  Color colorOwnTz    (config.color_own_tz.r,    config.color_own_tz.g,    config.color_own_tz.b);
-  Color colorTemp     (config.color_temp.r,      config.color_temp.g,      config.color_temp.b);
+  const ColorScheme colors = colors_from_config(config);
 
   // background color will be black
   Color bg_color(0, 0, 0);
 
-  FileReader temperatureFileReader(temperature_file, temperature_interval, config.temp_prefix);
+  FileReader temperatureFileReader(config.temp_file, config.temp_interval, config.temp_prefix);
 
-  rgb_matrix::Font* font = new rgb_matrix::Font();
-  if (!font->LoadFont(config.font_file.c_str())) {
+  rgb_matrix::Font font;
+  if (!font.LoadFont(config.font_file.c_str())) {
     fprintf(stderr, "Couldn't load font '%s'\n", config.font_file.c_str());
     return 1;
-  }
-
-  if (config.cities.empty()) {
-    fprintf(stderr, "No cities defined in config\n");
-    return 1;
-  }
-  {
-    size_t n = config.cities.size();
-    TZDataWanted *p = (TZDataWanted *)malloc(sizeof(TZDataWanted) * (n + 1));
-    for (size_t i = 0; i < n; i++) {
-      p[i].tzString  = strdup(config.cities[i].timezone.c_str());
-      p[i].tzDisplay = strdup(config.cities[i].display.c_str());
-    }
-    p[n].tzString  = nullptr;
-    p[n].tzDisplay = nullptr;
-    tz_wanted     = p;
-    tz_wanted_len = n;
   }
 
   RGBMatrix *matrix = rgb_matrix::CreateMatrixFromOptions(matrix_options,
@@ -225,7 +238,7 @@ int main(int argc, char *argv[]) {
 
   matrix->SetBrightness(config.brightness);
 
-  if (!dim_display && config.brightness == 100 && FullSaturation(colorDimmed) && FullSaturation(bg_color))
+  if (!dim_display && config.brightness == 100 && FullSaturation(colors.dimmed) && FullSaturation(bg_color))
     matrix->SetPWMBits(1);
 
   FrameCanvas *offscreen = matrix->CreateFrameCanvas();
@@ -235,60 +248,22 @@ int main(int argc, char *argv[]) {
   next_time.tv_sec = time(NULL);
   next_time.tv_nsec = 0;
 
-  const char *my_timezone = get_timezone();
-
-  size_t tz_length = tz_wanted_len;
-  TZData *tz = (TZData *)malloc(sizeof(TZData)*tz_length);
-  for (size_t ii=0;ii<tz_length;ii=ii+1) {
-    tz[ii].textBuffer = (char *)malloc(80+1);
-    tz[ii].tzString = tz_wanted[ii].tzString;
-    tz[ii].tzDisplay = tz_wanted[ii].tzDisplay;
-    tz[ii].isMyTimezone = (strcmp(my_timezone, tz[ii].tzString) == 0) ? true : false;
-  }
+  const std::string my_timezone = get_timezone();
+  if (my_timezone.empty())
+    fprintf(stderr, "Could not determine local timezone ($TZ or /etc/timezone); dimming uses UTC\n");
 
   signal(SIGTERM, InterruptHandler);
   signal(SIGINT, InterruptHandler);
 
   while (!interrupt_received) {
 
-    bool is_dimmed = false;
-
-    if (dim_display) {
-      struct tm my_tm;
-
-      set_timezone(my_timezone);
-      localtime_r(&next_time.tv_sec, &my_tm);
-      is_dimmed = (my_tm.tm_hour < dim_end_hour || my_tm.tm_hour >= dim_start_hour);
-      // uint8_t new_brightness = is_dimmed ? brightness/2 : brightness;
-      // if (new_brightness != matrix->brightness()) {
-      //   matrix->SetBrightness(new_brightness);
-      // }
-    }
+    const bool is_dimmed = dim_display && is_night(next_time.tv_sec, my_timezone, config);
 
     offscreen->Clear();
     offscreen->Fill(bg_color.r, bg_color.g, bg_color.b);
 
-    for (size_t ii=0;ii<tz_length;ii=ii+1) {
-      set_timezone(tz[ii].tzString);
-      localtime_r(&next_time.tv_sec, &tz[ii].tm);
-      strftime(tz[ii].textBuffer, 80, tzFmtStr, &tz[ii].tm);
-      if (dim_display && is_dimmed) {
-        tz[ii].tzColor = colorDimmed;
-      } else if (highlight_own_tz && tz[ii].isMyTimezone) {
-        tz[ii].tzColor = colorOwnTz;
-      } else {
-        int h = tz[ii].tm.tm_hour;
-        tz[ii].tzColor = (h >= evening_start_hour) ? colorEvening
-                       : (h >= day_start_hour)     ? colorDay
-                                                   : colorOvernight;
-      }
-    }
-
-    // set_timezone("UTC");
-
-    // Sort in place - no need to worry about initial order; it's irrelvant
-    // Plus, as the order only changes every hour (or 1/2 for India), the sort will be nothing most of the time
-    qsort((void *)tz, tz_length, sizeof(TZData), time_sorter);
+    // Sorted fresh each frame; the order only changes every hour (or 1/2 for India)
+    const std::vector<TZData> zones = snapshot_zones(next_time.tv_sec, is_dimmed, my_timezone, config, colors);
 
     // == keeping in mind row is spread across 2 panels
     // == if you change font/sizing you will need to play with spacing
@@ -301,22 +276,22 @@ int main(int argc, char *argv[]) {
     // paint the screen but don't display it till after the loop
     // we are actually painting the upcomming time vs the time now
 
-    for (size_t ii=0;ii<tz_length;ii=ii+1) {
+    for (const TZData &zone : zones) {
       int y_row = y + row_y_offset(config.row_offsets, row);
       if (city_name)
-        paint_city_name(x, y_row, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
+        paint_city_name(x, y_row, letter_spacing, offscreen, font, zone);
       else
-        paint_airport_code(x, y_row, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
+        paint_airport_code(x, y_row, letter_spacing, offscreen, font, zone);
 
-      x += font->CharacterWidth('@') * strlen(tz[ii].tzDisplay) + space_spacing;
-      paint_time(x, y_row, letter_spacing, space_spacing, offscreen, font, &tz[ii]);
+      x += font.CharacterWidth('@') * zone.tzDisplay.length() + space_spacing;
+      paint_words(x, y_row, letter_spacing, space_spacing, offscreen, font, zone.timeText, zone.tzColor);
 
       // deal with layout
       switch (layout_choice) {
         case 'd':
           // simple - just head downwards! - don't change x
           x = x_orig;
-          y += font->height();
+          y += font.height();
           row += 1;
           break;
 
@@ -325,7 +300,7 @@ int main(int argc, char *argv[]) {
           if (left_right) {
             // move down
             x = x_orig;
-            y += font->height();
+            y += font.height();
             row += 1;
           } else {
             // move right -- you want this to start at the halfway point of the total width
@@ -342,8 +317,9 @@ int main(int argc, char *argv[]) {
 
     // if we are displaying temp as the last line
     if (show_temp == true) {
-      Color tempColor = (dim_display && is_dimmed) ? colorDimmed : colorTemp;
-      paint_temp(x, y + row_y_offset(config.row_offsets, row), letter_spacing, space_spacing, offscreen, font, temperatureFileReader, tempColor);
+      Color tempColor = is_dimmed ? colors.dimmed : colors.temp;
+      paint_words(x, y + row_y_offset(config.row_offsets, row), letter_spacing, space_spacing, offscreen, font,
+                  temperatureFileReader.getValue(), tempColor);
     }
 
     // Wait until we're ready to show it.
