@@ -12,3 +12,6 @@ pi-clock
 foo.*
 
 
+
+# Unit test binary
+test_pi_clock

@@ -13,6 +13,7 @@
    - If you do not use the adafruit script you will require a `--led-gpio-mapping=adafruit-hat` argument added to your script as that tells the library which hardware to use
 1. Install yaml-cpp: `sudo apt-get install libyaml-cpp-dev`
 1. `cd ~/git/pi-clock ; make` to build the pi-clock executable
+   - `make test` builds and runs the unit tests (these don't need the LED matrix library)
 1. Edit `config.yaml` to match your hardware and preferences
 1. You can use the `clock-cli.sh` script to run it, or pass `-c <path>` to specify a config file
 
