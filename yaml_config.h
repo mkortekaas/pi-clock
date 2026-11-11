@@ -60,6 +60,7 @@ struct PiClockConfig {
     std::string temp_file;
     int         temp_interval = 5;
     std::string temp_prefix   = "TEMP ";
+    std::string temp_position = "bottom";   // "top" or "bottom"
 };
 
 bool load_yaml_config(const char *filename, PiClockConfig *config);

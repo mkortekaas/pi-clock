@@ -22,3 +22,15 @@ std::string city_window(const std::string &timezone, int seconds) {
   const size_t positions = city.size() - CITY_WINDOW_CHARS + 1;
   return city.substr(static_cast<size_t>(seconds) % positions, CITY_WINDOW_CHARS);
 }
+
+bool parse_temp_position(const std::string &value, TempPosition *out) {
+  if (value == "top") {
+    *out = TempPosition::Top;
+    return true;
+  }
+  if (value == "bottom") {
+    *out = TempPosition::Bottom;
+    return true;
+  }
+  return false;
+}

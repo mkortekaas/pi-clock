@@ -84,6 +84,7 @@ bool load_yaml_config(const char *filename, PiClockConfig *config)
         config->temp_file     = t["file"].as<std::string>(config->temp_file);
         config->temp_interval = t["interval"].as<int>(config->temp_interval);
         config->temp_prefix   = t["prefix"].as<std::string>(config->temp_prefix);
+        config->temp_position = t["position"].as<std::string>(config->temp_position);
     }
 
     return true;

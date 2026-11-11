@@ -144,6 +144,22 @@ static void test_get_timezone_empty_when_nothing_found() {
   CHECK(get_timezone(temp_path("no_such_file").c_str()) == "");
 }
 
+// --- parse_temp_position ---------------------------------------------------
+
+static void test_temp_position_parses_top_and_bottom() {
+  TempPosition pos = TempPosition::Bottom;
+  CHECK(parse_temp_position("top", &pos) && pos == TempPosition::Top);
+  CHECK(parse_temp_position("bottom", &pos) && pos == TempPosition::Bottom);
+}
+
+static void test_temp_position_rejects_unknown_value_and_keeps_output() {
+  TempPosition pos = TempPosition::Top;
+  CHECK(!parse_temp_position("middle", &pos));
+  CHECK(!parse_temp_position("", &pos));
+  CHECK(!parse_temp_position("TOP", &pos));
+  CHECK(pos == TempPosition::Top);
+}
+
 int main() {
   test_later_hour_shows_first();
   test_minutes_then_seconds_break_hour_ties();
@@ -161,6 +177,8 @@ int main() {
   test_get_timezone_prefers_tz_env();
   test_get_timezone_reads_file_when_tz_unset();
   test_get_timezone_empty_when_nothing_found();
+  test_temp_position_parses_top_and_bottom();
+  test_temp_position_rejects_unknown_value_and_keeps_output();
 
   if (failures) {
     fprintf(stderr, "%d check(s) failed\n", failures);

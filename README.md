@@ -128,6 +128,7 @@ cities:
 | `file` | Path to a text file whose first line is the temperature value | (empty) |
 | `interval` | How often (in seconds) to re-read the file | `5` |
 | `prefix` | String prepended to the value, e.g. `"TEMP "` | `TEMP ` |
+| `position` | `top` puts the temperature on its own first row (cities start below it); `bottom` puts it in the next free slot after the cities | `bottom` |
 
 The temperature file should contain a plain value such as `72.3F` or `22.4C`. A separate script (e.g. a cron job or `ExecStartPre` in the service unit) is responsible for keeping that file up to date.
 
