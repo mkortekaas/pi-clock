@@ -52,3 +52,4 @@ temperature:
   file: /tmp/tempest_airtemp.txt
   interval: 5
   prefix: "TEMP "
+  position: top     # top or bottom (default bottom)

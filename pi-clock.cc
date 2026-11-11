@@ -161,6 +161,9 @@ static std::string validate_config(const PiClockConfig &config) {
     return "display.brightness must be 1-100";
   if (config.cities.empty())
     return "No cities defined in config";
+  TempPosition unused;
+  if (!parse_temp_position(config.temp_position, &unused))
+    return "Bad temperature.position '" + config.temp_position + "' in config (only top or bottom)";
   return "";
 }
 
@@ -212,6 +215,8 @@ int main(int argc, char *argv[]) {
   bool  city_name     = config.show_city_name;
   char  layout_choice = config.layout;
   bool  show_temp            = config.show_temp;
+  TempPosition temp_position = TempPosition::Bottom;
+  parse_temp_position(config.temp_position, &temp_position); // already validated
 
   const ColorScheme colors = colors_from_config(config);
 
@@ -273,6 +278,16 @@ int main(int argc, char *argv[]) {
     int left_right = 0;
     size_t row = 0;
 
+    const Color tempColor = is_dimmed ? colors.dimmed : colors.temp;
+
+    // temp on top gets the first row to itself; cities start on the next one
+    if (show_temp && temp_position == TempPosition::Top) {
+      paint_words(x, y + row_y_offset(config.row_offsets, row), letter_spacing, space_spacing, offscreen, font,
+                  temperatureFileReader.getValue(), tempColor);
+      y += font.height();
+      row += 1;
+    }
+
     // paint the screen but don't display it till after the loop
     // we are actually painting the upcomming time vs the time now
 
@@ -315,9 +330,8 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    // if we are displaying temp as the last line
-    if (show_temp == true) {
-      Color tempColor = is_dimmed ? colors.dimmed : colors.temp;
+    // temp on the bottom takes the next free slot after the cities
+    if (show_temp && temp_position == TempPosition::Bottom) {
       paint_words(x, y + row_y_offset(config.row_offsets, row), letter_spacing, space_spacing, offscreen, font,
                   temperatureFileReader.getValue(), tempColor);
     }
